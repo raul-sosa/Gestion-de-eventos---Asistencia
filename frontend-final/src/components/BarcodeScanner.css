@@ -1,0 +1,230 @@
+.barcode-scanner {
+  background: white;
+  padding: 2rem;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(47, 62, 70, 0.12);
+  border-left: 4px solid var(--deep-teal);
+  margin-bottom: 2rem;
+}
+
+.scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--ash-grey);
+}
+
+.scanner-header h3 {
+  color: var(--charcoal-blue);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.scanner-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-ready,
+.status-scanning {
+  padding: 0.5rem 1rem;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-ready {
+  background: var(--muted-teal);
+  color: white;
+}
+
+.status-scanning {
+  background: var(--deep-teal);
+  color: white;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.scanner-input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.scanner-input {
+  flex: 1;
+  padding: 1rem;
+  border: 2px solid var(--ash-grey);
+  border-radius: 2px;
+  font-size: 1.1rem;
+  font-family: "Courier New", monospace;
+  transition: all 0.3s;
+}
+
+.scanner-input:focus {
+  outline: none;
+  border-color: var(--deep-teal);
+  box-shadow: 0 0 0 3px rgba(82, 121, 111, 0.1);
+}
+
+.scanner-input:disabled {
+  background: var(--ash-grey);
+  cursor: not-allowed;
+}
+
+.btn-camera {
+  padding: 1rem;
+  background: #14b8a6;
+  color: white;
+  border: 2px solid #14b8a6;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-camera:hover:not(:disabled) {
+  background: #0f9b8e;
+  border-color: #0f9b8e;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+.btn-camera:disabled {
+  background: var(--ash-grey);
+  border-color: var(--ash-grey);
+  cursor: not-allowed;
+}
+
+.btn-scan {
+  padding: 1rem 2rem;
+  background: var(--deep-teal);
+  color: white;
+  border: 2px solid var(--deep-teal);
+  border-radius: 2px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.btn-scan:hover:not(:disabled) {
+  background: var(--charcoal-blue);
+  border-color: var(--charcoal-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(47, 62, 70, 0.3);
+}
+
+.btn-scan:disabled {
+  background: var(--ash-grey);
+  border-color: var(--ash-grey);
+  color: var(--dark-slate-grey);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.scanner-instructions {
+  background: linear-gradient(135deg, var(--ash-grey) 0%, #e8ede8 100%);
+  padding: 1.5rem;
+  border-radius: 2px;
+  border-left: 3px solid var(--muted-teal);
+}
+
+.scanner-instructions p {
+  color: var(--charcoal-blue);
+  font-weight: 700;
+  margin: 0 0 0.75rem 0;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+.scanner-instructions ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: var(--dark-slate-grey);
+}
+
+.scanner-instructions li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.scanner-instructions li:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .barcode-scanner {
+    padding: 1rem;
+  }
+
+  .scanner-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .scanner-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .scanner-input-group {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .scanner-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    padding: 0.8rem;
+  }
+
+  .btn-camera {
+    padding: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .btn-scan {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .scanner-instructions {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .scanner-instructions ul {
+    padding-left: 1.2rem;
+  }
+
+  .scanner-instructions li {
+    font-size: 0.85rem;
+  }
+}
