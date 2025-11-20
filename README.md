@@ -398,14 +398,6 @@ netstat -ano | findstr "8101 8102 8103"
 5. **Logs**: Sistema centralizado de logging
 6. **Monitoring**: Métricas y alertas
 
-### Deployment
-
-El sistema puede desplegarse en:
-
-- **Backend**: Railway, Render, Heroku, AWS, DigitalOcean
-- **Frontend**: Vercel, Netlify, GitHub Pages
-- **Completo**: Docker + Kubernetes, AWS ECS, Google Cloud Run
-
 ## Acceso desde Red Local
 
 ### Configuración para Dispositivos Móviles
@@ -427,10 +419,6 @@ El sistema puede desplegarse en:
 4. Configurar firewall de Windows si es necesario:
    - Permitir puerto 5173 (Frontend)
    - Permitir puerto 8100 (API Gateway)
-
-## Licencia
-
-Este proyecto es de código abierto y está disponible bajo la licencia MIT.
 
 ## Contribuciones
 
