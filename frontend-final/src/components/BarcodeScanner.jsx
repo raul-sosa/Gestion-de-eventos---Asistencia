@@ -15,6 +15,13 @@ function BarcodeScanner({ onScan, eventId, disabled }) {
     if (inputRef.current && !disabled) {
       inputRef.current.focus();
     }
+
+    // Limpiar timeout al desmontar
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [disabled]);
 
   const handleKeyPress = (e) => {
@@ -28,22 +35,48 @@ function BarcodeScanner({ onScan, eventId, disabled }) {
   };
 
   const handleChange = (e) => {
+    if (disabled || scanning) return;
+
     let value = e.target.value;
 
     // Solo permitir números y máximo 5 dígitos
     value = value.replace(/\D/g, "").slice(0, 5);
-    setBarcode(value);
 
     // Limpiar timeout anterior
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
+    // Actualizar el estado
+    setBarcode(value);
+
     // Auto-scan cuando tenga exactamente 5 dígitos
     if (value.length === 5) {
+      // Usar el valor directamente en lugar de esperar al estado
       timeoutRef.current = setTimeout(() => {
-        handleScan();
+        handleScanWithValue(value);
+      }, 500);
+    }
+  };
+
+  const handleScanWithValue = async (matricula) => {
+    if (!matricula || !eventId || scanning) return;
+
+    setScanning(true);
+    try {
+      await onScan(matricula, eventId);
+      setBarcode("");
+
+      // Re-focus en el input
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
       }, 100);
+    } catch (error) {
+      console.error("Error al escanear:", error);
+    } finally {
+      setScanning(false);
     }
   };
 

@@ -9,6 +9,12 @@ import json
 import io
 import csv
 import requests
+import sys
+import os
+
+# Agregar path para importar database
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database import get_connection
 
 app = FastAPI(title="Reports Service - Sistema de Asistencias")
 
@@ -297,20 +303,26 @@ def get_global_statistics(
     finalized_events = len([e for e in events if e["estado"] == "finalizado"])
     
     total_attendances = 0
-    total_validated = 0
+    total_pre_registros = 0
+    
+    # Obtener pre-registros de la base de datos
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM pre_registros")
+    total_pre_registros = cursor.fetchone()[0]
     
     for event in events:
         attendances = get_event_attendances(event["id"], token)
         total_attendances += len(attendances)
-        total_validated += len([a for a in attendances if a["validado"]])
+    
+    conn.close()
     
     return {
         "total_events": total_events,
         "active_events": active_events,
         "finalized_events": finalized_events,
+        "total_pre_registros": total_pre_registros,
         "total_attendances": total_attendances,
-        "validated_attendances": total_validated,
-        "pending_validation": total_attendances - total_validated,
         "average_attendances_per_event": round(total_attendances / total_events, 2) if total_events > 0 else 0
     }
 
@@ -323,9 +335,11 @@ def export_event_pdf(
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.lib import colors
-        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.units import inch
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
     except ImportError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -344,6 +358,10 @@ def export_event_pdf(
     
     attendances = get_event_attendances(event_id, token)
     
+    # Buscar información de estudiantes en la base de datos
+    conn = get_connection()
+    cursor = conn.cursor()
+    
     # Crear PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -351,61 +369,65 @@ def export_event_pdf(
     styles = getSampleStyleSheet()
     
     # Título
-    title = Paragraph(f"<b>Reporte de Asistencia - {event['nombre']}</b>", styles['Title'])
+    title = Paragraph(f"<b>Reporte de Asistencia</b>", styles['Title'])
     elements.append(title)
-    elements.append(Spacer(1, 0.3*inch))
+    elements.append(Spacer(1, 0.2*inch))
     
     # Información del evento
-    info_data = [
-        ["Evento:", event['nombre']],
-        ["Fecha Inicio:", event['fecha_hora_inicio']],
-        ["Ubicación:", event.get('ubicacion', 'N/A')],
-        ["Estado:", event['estado']],
-        ["Total Asistencias:", str(len(attendances))],
-        ["Validadas:", str(len([a for a in attendances if a['validado']]))],
-    ]
-    
-    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
-    info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.grey),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
-    
-    elements.append(info_table)
-    elements.append(Spacer(1, 0.5*inch))
+    event_info = Paragraph(f"<b>Evento:</b> {event['nombre']}<br/>"
+                          f"<b>Fecha:</b> {event['fecha_hora_inicio']}<br/>"
+                          f"<b>Ubicacion:</b> {event.get('ubicacion', 'N/A')}<br/>"
+                          f"<b>Total Asistencias:</b> {len(attendances)}", styles['Normal'])
+    elements.append(event_info)
+    elements.append(Spacer(1, 0.3*inch))
     
     # Tabla de asistencias
     if attendances:
         elements.append(Paragraph("<b>Lista de Asistencias</b>", styles['Heading2']))
         elements.append(Spacer(1, 0.2*inch))
         
-        attendance_data = [["#", "ID Credencial", "Hora Registro", "Estado"]]
+        attendance_data = [["#", "Matricula", "Nombre", "Carrera", "Hora"]]
+        
         for idx, att in enumerate(attendances, 1):
+            matricula = att['id_credencial']
+            
+            # Buscar estudiante en la base de datos
+            cursor.execute("SELECT nombre, carrera FROM students WHERE matricula = ?", (matricula,))
+            student_row = cursor.fetchone()
+            
+            if student_row:
+                nombre = student_row[0] if student_row[0] else "N/A"
+                carrera = student_row[1] if student_row[1] else "N/A"
+            else:
+                nombre = "No registrado"
+                carrera = "N/A"
+            
             attendance_data.append([
                 str(idx),
-                att['id_credencial'],
-                att['hora_registro'][:19],
-                "Validado" if att['validado'] else "Pendiente"
+                matricula,
+                nombre,
+                carrera,
+                att['hora_registro'][:16]
             ])
         
-        attendance_table = Table(attendance_data, colWidths=[0.5*inch, 2*inch, 2.5*inch, 1.5*inch])
+        attendance_table = Table(attendance_data, colWidths=[0.4*inch, 1*inch, 2.2*inch, 1.8*inch, 1.2*inch])
         attendance_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white])
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F2F2F2')])
         ]))
         
         elements.append(attendance_table)
+    else:
+        elements.append(Paragraph("No hay asistencias registradas.", styles['Normal']))
+    
+    conn.close()
     
     doc.build(elements)
     buffer.seek(0)
@@ -415,8 +437,7 @@ def export_event_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=reporte_{event['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
-            "Content-Length": str(len(pdf_bytes))
+            "Content-Disposition": f"attachment; filename=reporte_{event['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
         }
     )
 

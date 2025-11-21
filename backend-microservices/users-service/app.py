@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from datetime import datetime, timedelta
-import json
+from datetime import datetime, timedelta, timezone
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database import get_connection, row_to_dict, rows_to_list, init_database
 import uuid
 import jwt
 import bcrypt
@@ -26,7 +28,8 @@ SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
-DB_FILE = "users_db.json"
+# Inicializar base de datos al arrancar
+init_database()
 
 class UserCreate(BaseModel):
     username: str
@@ -42,8 +45,8 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
-    email: str
-    full_name: str
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     role: str
     created_at: str
 
@@ -65,58 +68,37 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verificar password contra hash"""
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
-def load_database():
-    if not os.path.exists(DB_FILE):
-        initial_data = {
-            "users": []
-        }
-        # Admin
-        initial_data["users"].append({
-            "id": str(uuid.uuid4()),
-            "username": "admin",
-            "email": "admin@eventos.com",
-            "password": hash_password("admin123"),
-            "full_name": "Administrador",
-            "role": "admin",
-            "created_at": datetime.now().isoformat()
-        })
-        # Encargado
-        initial_data["users"].append({
-            "id": str(uuid.uuid4()),
-            "username": "encargado",
-            "email": "encargado@eventos.com",
-            "password": hash_password("encargado123"),
-            "full_name": "Encargado de Asistencia",
-            "role": "encargado",
-            "created_at": datetime.now().isoformat()
-        })
-        # Estudiante
-        initial_data["users"].append({
-            "id": str(uuid.uuid4()),
-            "username": "estudiante",
-            "email": "estudiante@eventos.com",
-            "password": hash_password("estudiante123"),
-            "full_name": "Estudiante Prueba",
-            "role": "estudiante",
-            "matricula": "12345",
-            "created_at": datetime.now().isoformat()
-        })
-        save_database(initial_data)
-        return initial_data
+def ensure_default_users():
+    """Asegura que existan los usuarios por defecto"""
+    conn = get_connection()
+    cursor = conn.cursor()
     
-    with open(DB_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    default_users = [
+        ("admin", "admin@eventos.com", "admin123", "Administrador", "admin"),
+        ("encargado", "encargado@eventos.com", "encargado123", "Encargado de Asistencia", "encargado"),
+        ("estudiante", "estudiante@eventos.com", "estudiante123", "Estudiante Prueba", "estudiante")
+    ]
+    
+    for username, email, password, full_name, role in default_users:
+        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), username, email, hash_password(password), full_name, role, datetime.now().isoformat())
+            )
+    
+    conn.commit()
+    conn.close()
 
-def save_database(data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+# Asegurar usuarios por defecto
+ensure_default_users()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -146,57 +128,77 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             detail="Token inválido"
         )
     
-    db = load_database()
-    user = next((u for u in db["users"] if u["id"] == user_id), None)
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario no encontrado"
         )
     
-    return user
+    return row_to_dict(user)
 
 @app.post("/api/users/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user: UserCreate):
-    db = load_database()
+    conn = get_connection()
+    cursor = conn.cursor()
     
-    if any(u["username"] == user.username for u in db["users"]):
+    # Verificar username
+    cursor.execute("SELECT id FROM users WHERE username = ?", (user.username,))
+    if cursor.fetchone():
+        conn.close()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El nombre de usuario ya existe"
         )
     
-    if any(u["email"] == user.email for u in db["users"]):
+    # Verificar email
+    cursor.execute("SELECT id FROM users WHERE email = ?", (user.email,))
+    if cursor.fetchone():
+        conn.close()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El correo electrónico ya está registrado"
         )
     
     hashed_password = hash_password(user.password)
+    user_id = str(uuid.uuid4())
+    created_at = datetime.now().isoformat()
     
-    new_user = {
-        "id": str(uuid.uuid4()),
-        "username": user.username,
-        "email": user.email,
-        "password": hashed_password,
-        "full_name": user.full_name,
-        "role": user.role,
-        "created_at": datetime.now().isoformat()
-    }
+    cursor.execute(
+        "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (user_id, user.username, user.email, hashed_password, user.full_name, user.role, created_at)
+    )
+    conn.commit()
     
-    db["users"].append(new_user)
-    save_database(db)
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    new_user = row_to_dict(cursor.fetchone())
+    conn.close()
     
-    user_response = {k: v for k, v in new_user.items() if k != "password"}
-    return user_response
+    del new_user['password']
+    return new_user
 
 @app.post("/api/users/login", response_model=TokenResponse)
 def login(user_login: UserLogin):
-    db = load_database()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (user_login.username,))
+    user_row = cursor.fetchone()
+    conn.close()
     
-    user = next((u for u in db["users"] if u["username"] == user_login.username), None)
+    if not user_row:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas"
+        )
     
-    if not user or not verify_password(user_login.password, user["password"]):
+    user = row_to_dict(user_row)
+    
+    if not verify_password(user_login.password, user["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas"
@@ -223,41 +225,45 @@ def get_current_user_info(current_user: dict = Depends(get_current_user)):
 
 @app.put("/api/users/me", response_model=UserResponse)
 def update_current_user(user_update: UserUpdate, current_user: dict = Depends(get_current_user)):
-    db = load_database()
-    
-    user_index = next((i for i, u in enumerate(db["users"]) if u["id"] == current_user["id"]), None)
-    
-    if user_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuario no encontrado"
-        )
+    conn = get_connection()
+    cursor = conn.cursor()
     
     if user_update.email:
-        if any(u["email"] == user_update.email and u["id"] != current_user["id"] for u in db["users"]):
+        cursor.execute("SELECT id FROM users WHERE email = ? AND id != ?", (user_update.email, current_user["id"]))
+        if cursor.fetchone():
+            conn.close()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El correo electrónico ya está en uso"
             )
-        db["users"][user_index]["email"] = user_update.email
+        cursor.execute("UPDATE users SET email = ? WHERE id = ?", (user_update.email, current_user["id"]))
     
     if user_update.full_name:
-        db["users"][user_index]["full_name"] = user_update.full_name
+        cursor.execute("UPDATE users SET full_name = ? WHERE id = ?", (user_update.full_name, current_user["id"]))
     
     if user_update.password:
-        db["users"][user_index]["password"] = hash_password(user_update.password)
+        hashed = hash_password(user_update.password)
+        cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed, current_user["id"]))
     
-    save_database(db)
+    conn.commit()
     
-    updated_user = db["users"][user_index]
-    user_response = {k: v for k, v in updated_user.items() if k != "password"}
-    return user_response
+    cursor.execute("SELECT * FROM users WHERE id = ?", (current_user["id"],))
+    updated_user = row_to_dict(cursor.fetchone())
+    conn.close()
+    
+    del updated_user['password']
+    return updated_user
 
 @app.post("/api/users/verify-token")
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     payload = decode_token(token)
-    return {"valid": True, "user_id": payload.get("sub"), "username": payload.get("username")}
+    return {
+        "valid": True, 
+        "user_id": payload.get("sub"), 
+        "username": payload.get("username"),
+        "role": payload.get("role")
+    }
 
 @app.get("/")
 def root():

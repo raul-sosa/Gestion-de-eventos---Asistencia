@@ -28,7 +28,7 @@
   margin-bottom: 0.5rem;
 }
 
-.form-group input,
+.form-group input:not(.file-input),
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
@@ -40,6 +40,53 @@
 .form-group textarea {
   resize: vertical;
   font-family: inherit;
+}
+
+.file-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 2px dashed #cbd5e0;
+  border-radius: 8px;
+  background-color: #f7fafc;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-input:hover {
+  border-color: #4299e1;
+  background-color: #ebf8ff;
+}
+
+.form-hint {
+  display: block;
+  color: #718096;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.image-preview {
+  margin-top: 1rem;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 400px;
+}
+
+.image-preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.upload-progress {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #bee3f8;
+  color: #2c5282;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 .form-row {

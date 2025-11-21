@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 import httpx
 from typing import Optional
 
@@ -21,56 +21,84 @@ SERVICES = {
 }
 
 async def proxy_request(service_url: str, path: str, request: Request):
-    client = httpx.AsyncClient(timeout=30.0)
-    
-    try:
-        headers = dict(request.headers)
-        headers.pop("host", None)
-        
-        url = f"{service_url}{path}"
-        
-        if request.method == "OPTIONS":
-            # Preflight CORS request: respond OK and let CORSMiddleware append headers
-            return JSONResponse(content={}, status_code=200)
-        elif request.method == "GET":
-            response = await client.get(url, headers=headers, params=request.query_params)
-        elif request.method == "POST":
-            body = await request.body()
-            response = await client.post(url, headers=headers, content=body)
-        elif request.method == "PUT":
-            body = await request.body()
-            response = await client.put(url, headers=headers, content=body)
-        elif request.method == "DELETE":
-            response = await client.delete(url, headers=headers)
-        else:
-            raise HTTPException(status_code=405, detail="Método no permitido")
-        
-        if response.headers.get("content-type", "").startswith("text/csv"):
-            return StreamingResponse(
-                iter([response.content]),
-                media_type="text/csv",
-                headers=dict(response.headers)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            headers = dict(request.headers)
+            headers.pop("host", None)
+            
+            url = f"{service_url}{path}"
+            print(f"[Gateway] {request.method} {url}")
+            
+            if request.method == "OPTIONS":
+                # Preflight CORS request: respond OK and let CORSMiddleware append headers
+                return JSONResponse(content={}, status_code=200)
+            elif request.method == "GET":
+                response = await client.get(url, headers=headers, params=request.query_params)
+            elif request.method == "POST":
+                body = await request.body()
+                print(f"[Gateway] Body length: {len(body)}")
+                response = await client.post(url, headers=headers, content=body)
+            elif request.method == "PUT":
+                body = await request.body()
+                response = await client.put(url, headers=headers, content=body)
+            elif request.method == "DELETE":
+                response = await client.delete(url, headers=headers)
+            else:
+                raise HTTPException(status_code=405, detail="Método no permitido")
+            
+            content_type = response.headers.get("content-type", "")
+            
+            # Manejar CSV
+            if content_type.startswith("text/csv"):
+                return StreamingResponse(
+                    iter([response.content]),
+                    media_type="text/csv",
+                    headers=dict(response.headers)
+                )
+            
+            # Manejar PDF
+            if content_type.startswith("application/pdf"):
+                return Response(
+                    content=response.content,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": response.headers.get("content-disposition", "attachment; filename=reporte.pdf")
+                    }
+                )
+            
+            # Manejar imágenes
+            if content_type.startswith("image/"):
+                return Response(
+                    content=response.content,
+                    media_type=content_type,
+                    headers={
+                        "Cache-Control": "public, max-age=31536000"
+                    }
+                )
+            
+            # Intentar parsear JSON, si falla devolver contenido raw
+            try:
+                content = response.json() if response.text else {}
+            except Exception:
+                content = {"detail": response.text or "Sin contenido"}
+            
+            # Filtrar headers problemáticos
+            response_headers = dict(response.headers)
+            response_headers.pop("content-length", None)
+            response_headers.pop("content-encoding", None)
+            response_headers.pop("transfer-encoding", None)
+            
+            return JSONResponse(
+                content=content,
+                status_code=response.status_code
             )
         
-        # Intentar parsear JSON, si falla devolver contenido raw
-        try:
-            content = response.json() if response.text else {}
-        except Exception:
-            content = {"detail": response.text or "Sin contenido"}
-        
-        return JSONResponse(
-            content=content,
-            status_code=response.status_code,
-            headers=dict(response.headers)
-        )
-    
-    except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Servicio no disponible: {str(e)}"
-        )
-    finally:
-        await client.aclose()
+        except httpx.RequestError as e:
+            print(f"[Gateway] Error: {str(e)}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Servicio no disponible: {str(e)}"
+            )
 
 @app.api_route("/api/users/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def users_proxy(path: str, request: Request):
@@ -115,6 +143,14 @@ async def students_proxy(path: str, request: Request):
 @app.api_route("/api/students", methods=["GET", "POST", "OPTIONS"])
 async def students_root_proxy(request: Request):
     return await proxy_request(SERVICES["events"], "/api/students", request)
+
+@app.api_route("/api/uploads/{path:path}", methods=["GET"])
+async def api_uploads_proxy(path: str, request: Request):
+    return await proxy_request(SERVICES["events"], f"/uploads/{path}", request)
+
+@app.api_route("/uploads/{path:path}", methods=["GET"])
+async def uploads_proxy(path: str, request: Request):
+    return await proxy_request(SERVICES["events"], f"/uploads/{path}", request)
 
 @app.get("/health")
 async def health_check():

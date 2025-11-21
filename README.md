@@ -1,46 +1,170 @@
 # Sistema de Gestión de Asistencias a Eventos
 
-Sistema web completo para la gestión y control de asistencias a eventos académicos, desarrollado con arquitectura de microservicios. Implementa autenticación segura, control de acceso basado en roles, registro de asistencias mediante lectura de códigos de barras y generación de reportes.
+Sistema web completo para la gestión y control de asistencias a eventos académicos, desarrollado con arquitectura de microservicios utilizando FastAPI y React.
 
 ## Características Principales
 
-- **Sistema Multiusuario**: Tres roles diferenciados (Administrador, Encargado, Estudiante)
 - **Gestión de Eventos**: Crear, editar, eliminar y finalizar eventos con soporte de imágenes
-- **Registro de Asistencias**: Escaneo de códigos de barras mediante cámara o entrada manual
-- **Validación de Matrícula**: Control estricto de formato (5 dígitos numéricos)
+- **Registro de Asistencias**: Escaneo de códigos de barras mediante cámara o entrada manual de matrícula (5 dígitos)
+- **Búsqueda Automática de Estudiantes**: El sistema busca y muestra automáticamente el nombre del estudiante al registrar asistencia
 - **Pre-registro**: Los estudiantes pueden registrarse anticipadamente a eventos
+- **Sistema Multiusuario**: 3 roles diferenciados (Administrador, Encargado, Estudiante)
+- **Reportes**: Generación de reportes en PDF y CSV con información detallada de asistentes
 - **Importación de Datos**: Carga masiva de estudiantes desde archivos Excel
-- **Reportes**: Generación de reportes en formato PDF y CSV
-- **Diseño Responsivo**: Interfaz adaptable para dispositivos móviles
 - **Autenticación Segura**: JWT con encriptación bcrypt
+- **Base de Datos SQL**: Almacenamiento persistente con SQLite
+- **Validación de Asistencias**: Control de asistencias por parte de encargados
+- **Estadísticas**: Dashboard con métricas de pre-registros y asistencias
+- **Soporte de Imágenes**: Subida y visualización de imágenes para eventos
 
 ## Tecnologías
 
 ### Backend
 
-- **FastAPI 0.115.0**: Framework web asíncrono de alto rendimiento
-- **Python 3.x**: Lenguaje de programación
-- **bcrypt**: Encriptación segura de contraseñas
-- **PyJWT 2.9.0**: Autenticación mediante tokens JWT
-- **Uvicorn**: Servidor ASGI
-- **Pandas 2.2.0**: Procesamiento de datos Excel
-- **ReportLab 4.0.7**: Generación de documentos PDF
+- **FastAPI** - Framework web asíncrono
+- **Python 3.x** - Lenguaje de programación
+- **SQLite** - Base de datos
+- **bcrypt** - Encriptación de contraseñas
+- **PyJWT** - Autenticación JWT
+- **Pandas** - Procesamiento de datos Excel
+- **ReportLab** - Generación de PDFs
 
 ### Frontend
 
-- **React 18**: Biblioteca para interfaces de usuario
-- **Vite 5.4.2**: Herramienta de construcción y servidor de desarrollo
-- **React Router DOM 6**: Sistema de navegación
-- **Axios 1.7.7**: Cliente HTTP
-- **html5-qrcode**: Lectura de códigos de barras mediante cámara
-- **CSS3**: Estilos personalizados con diseño responsivo
+- **React 18** - Biblioteca UI
+- **Vite** - Build tool
+- **React Router** - Navegación
+- **Axios** - Cliente HTTP
+- **html5-qrcode** - Lectura de códigos de barras
 
 ### Arquitectura
 
-- **Microservicios**: 4 servicios independientes comunicados mediante API REST
-- **API Gateway**: Punto de entrada único (puerto 8100)
-- **JSON Storage**: Persistencia de datos en archivos JSON
-- **Proxy Inverso**: Vite proxy para desarrollo
+**Microservicios con API Gateway**
+
+El sistema utiliza una arquitectura de microservicios donde cada servicio es independiente y se comunica a través de HTTP:
+
+- **API Gateway** (Puerto 8100): Punto de entrada único que enruta las peticiones a los servicios correspondientes
+- **Users Service** (Puerto 8101): Gestión de usuarios, autenticación y autorización con JWT
+- **Events Service** (Puerto 8102): Gestión de eventos, asistencias, pre-registros y estudiantes
+- **Reports Service** (Puerto 8103): Generación de reportes, estadísticas y exportación de datos
+
+**Modelo de Base de Datos**
+
+SQLite con las siguientes tablas:
+
+- `users`: Almacena usuarios del sistema con roles y contraseñas encriptadas
+- `events`: Información de eventos (nombre, fecha, ubicación, capacidad, imagen_path, imagen_url)
+- `attendances`: Registro de asistencias con validación y referencia al estudiante
+- `pre_registros`: Pre-registros de estudiantes a eventos
+- `students`: Catálogo de estudiantes importados desde Excel (matrícula de 5 dígitos)
+
+## Instalación
+
+### Requisitos
+
+- Python 3.8+
+- Node.js 16+
+- npm
+
+### Instalación Automática (Windows)
+
+```bash
+INSTALAR_DEPENDENCIAS.bat
+```
+
+### Instalación Manual
+
+**Backend:**
+
+```bash
+cd backend-microservices/users-service
+pip install -r requirements.txt
+
+cd ../events-service
+pip install -r requirements.txt
+
+cd ../reports-service
+pip install -r requirements.txt
+
+cd ../api-gateway
+pip install -r requirements.txt
+
+cd ..
+python init_database.py
+```
+
+**Frontend:**
+
+```bash
+cd frontend-final
+npm install
+```
+
+## Uso
+
+### Inicio Rápido
+
+```bash
+INICIO_RAPIDO.bat
+```
+
+Este script inicia automáticamente todos los servicios.
+
+### Inicio Manual
+
+Abrir 5 terminales:
+
+```bash
+# Terminal 1 - API Gateway
+cd backend-microservices/api-gateway
+python app.py
+
+# Terminal 2 - Users Service
+cd backend-microservices/users-service
+python app.py
+
+# Terminal 3 - Events Service
+cd backend-microservices/events-service
+python app.py
+
+# Terminal 4 - Reports Service
+cd backend-microservices/reports-service
+python app.py
+
+# Terminal 5 - Frontend
+cd frontend-final
+npm run dev
+```
+
+### Acceso
+
+Abrir navegador en: `http://localhost:5173`
+
+### Usuarios por Defecto
+
+| Usuario    | Contraseña    | Rol           |
+| ---------- | ------------- | ------------- |
+| admin      | admin123      | Administrador |
+| encargado  | encargado123  | Encargado     |
+| estudiante | estudiante123 | Estudiante    |
+
+## Importar Estudiantes
+
+### Automático
+
+```bash
+IMPORTAR_ESTUDIANTES.bat
+```
+
+### Manual
+
+```bash
+cd backend-microservices
+pip install pandas openpyxl
+python import_students.py
+```
+
+El archivo `alumnos.xlsx` debe tener las columnas: Matricula, Nombre, Carrera, Semestre, Email
 
 ## Estructura del Proyecto
 
@@ -50,388 +174,183 @@ Asistencia-eventos/
 │   ├── api-gateway/          # Puerto 8100
 │   ├── users-service/        # Puerto 8101
 │   ├── events-service/       # Puerto 8102
-│   └── reports-service/      # Puerto 8103
-├── frontend-final/           # Puerto 5173
-├── INICIO_RAPIDO.bat         # Inicio automático (Windows)
-├── instalar.ps1              # Instalación de dependencias
-└── README.md
+│   ├── reports-service/      # Puerto 8103
+│   ├── database.py           # Configuración BD
+│   ├── init_database.py      # Inicialización BD
+│   └── import_students.py    # Importador Excel
+├── frontend-final/           # Aplicación React
+├── alumnos.xlsx             # Plantilla estudiantes
+├── INICIO_RAPIDO.bat        # Inicio automático
+├── IMPORTAR_ESTUDIANTES.bat # Importación automática
+└── INSTALAR_DEPENDENCIAS.bat # Instalación automática
 ```
 
-## Requisitos Previos
+## Funcionalidades por Rol
 
-- **Python 3.13** o superior
-- **Node.js 18** o superior
-- **npm** o **yarn**
-- **Windows** (para scripts .bat) o **Linux/Mac** (usar comandos manuales)
+### Administrador
 
-## Instalación
+- Gestión completa de usuarios
+- Crear, editar y eliminar cualquier evento
+- Finalizar cualquier evento (propio o de otros organizadores)
+- Registrar asistencias (incluso en eventos finalizados)
+- Acceso a todas las estadísticas y reportes
+- Subir y gestionar imágenes de eventos
 
-### Opción 1: Instalación Automática (Windows)
+### Encargado
 
-1. Abre PowerShell en la carpeta del proyecto
-2. Ejecuta el script de instalación:
-
-```powershell
-.\instalar.ps1
-```
-
-Si aparece error de política de ejecución:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-.\instalar.ps1
-```
-
-### Opción 2: Instalación Manual
-
-#### Backend (cada microservicio)
-
-```bash
-# Users Service
-cd backend-microservices/users-service
-pip install -r requirements.txt
-
-# Events Service
-cd ../events-service
-pip install -r requirements.txt
-
-# Reports Service
-cd ../reports-service
-pip install -r requirements.txt
-
-# API Gateway
-cd ../api-gateway
-pip install -r requirements.txt
-```
-
-#### Frontend
-
-```bash
-cd frontend-final
-npm install
-```
-
-## Ejecución
-
-### Opción 1: Inicio Automático (Windows)
-
-Simplemente ejecuta:
-
-```bash
-INICIO_RAPIDO.bat
-```
-
-Esto iniciará automáticamente:
-
-- Users Service (puerto 8101)
-- Events Service (puerto 8102)
-- Reports Service (puerto 8103)
-- API Gateway (puerto 8100)
-- Frontend (puerto 5173)
-
-### Opción 2: Inicio Manual
-
-Abre **5 terminales diferentes** y ejecuta en cada una:
-
-#### Terminal 1 - Users Service
-
-```bash
-cd backend-microservices/users-service
-python app.py
-```
-
-#### Terminal 2 - Events Service
-
-```bash
-cd backend-microservices/events-service
-python app.py
-```
-
-#### Terminal 3 - Reports Service
-
-```bash
-cd backend-microservices/reports-service
-python app.py
-```
-
-#### Terminal 4 - API Gateway
-
-```bash
-cd backend-microservices/api-gateway
-python app.py
-```
-
-#### Terminal 5 - Frontend
-
-```bash
-cd frontend-final
-npm run dev
-```
-
-## Acceso al Sistema
-
-Una vez iniciado, accede a:
-
-**URL**: http://localhost:5173
-
-**Credenciales por defecto**:
-
-| Rol           | Usuario      | Contraseña      | Permisos                             |
-| ------------- | ------------ | --------------- | ------------------------------------ |
-| Administrador | `admin`      | `admin123`      | Acceso completo al sistema           |
-| Encargado     | `encargado`  | `encargado123`  | Registro y validación de asistencias |
-| Estudiante    | `estudiante` | `estudiante123` | Consulta de eventos y pre-registro   |
-
-## Verificación
-
-### Health Check
-
-Verifica que todos los servicios estén funcionando:
-
-```
-http://localhost:8100/health
-```
-
-Debe mostrar todos los servicios como "healthy".
-
-### Servicios Individuales
-
-- Users Service: http://localhost:8101/
-- Events Service: http://localhost:8102/
-- Reports Service: http://localhost:8103/
-- API Gateway: http://localhost:8100/
-- Frontend: http://localhost:5173/
-
-## Uso del Sistema
-
-### Funcionalidades por Rol
-
-#### Administrador
-
-- Gestión completa de eventos (crear, editar, eliminar, finalizar)
-- Agregar imágenes a eventos mediante URL
-- Importar base de datos de estudiantes desde Excel
-- Generar reportes en PDF y CSV
+- Crear y gestionar sus propios eventos
+- Finalizar únicamente sus propios eventos
+- Registrar asistencias en eventos activos
 - Validar asistencias
-- Ver estadísticas globales
+- Exportar reportes de sus eventos
+- Subir imágenes a sus eventos
 
-#### Encargado de Asistencia
+### Estudiante
 
-- Visualizar eventos activos
-- Registrar asistencias mediante:
-  - Escaneo de código de barras con cámara
-  - Entrada manual de matrícula (5 dígitos)
-- Validar asistencias registradas
-- Ver estadísticas de asistencia por evento
-
-#### Estudiante
-
-- Consultar eventos disponibles
+- Ver eventos disponibles
 - Pre-registrarse a eventos
-- Ver historial de asistencias
-- Dashboard personalizado
+- Ver sus pre-registros y asistencias
 
-### Registro de Asistencias
+## API Endpoints
 
-#### Desde Computadora
+### Users Service (8101)
 
-1. Login como encargado
-2. Seleccionar evento activo
-3. Ingresar matrícula (5 dígitos numéricos)
-4. El sistema valida y registra automáticamente
+- `POST /api/users/login` - Iniciar sesión
+- `POST /api/users/register` - Registrar usuario
+- `GET /api/users/me` - Usuario actual
 
-#### Desde Dispositivo Móvil
+### Events Service (8102)
 
-1. Conectarse a la misma red WiFi
-2. Acceder a `http://IP_SERVIDOR:5173`
-3. Login como encargado
-4. Usar botón de cámara para escanear códigos de barras
-5. El registro se guarda en el servidor central
+- `GET /api/events` - Listar eventos
+- `POST /api/events` - Crear evento
+- `PUT /api/events/{id}` - Actualizar evento
+- `DELETE /api/events/{id}` - Eliminar evento (admin o propietario)
+- `POST /api/events/{id}/finalize` - Finalizar evento (admin o propietario)
+- `POST /api/attendances` - Registrar asistencia
+- `GET /api/events/{id}/attendances` - Listar asistencias (incluye datos del estudiante)
+- `POST /api/pre-registros` - Pre-registrarse
+- `GET /api/students/search/{matricula}` - Buscar estudiante por matrícula
+- `POST /api/events/upload-image` - Subir imagen
+- `GET /api/uploads/images/{filename}` - Obtener imagen
 
-### Importación de Estudiantes
+### Reports Service (8103)
 
-1. Preparar archivo Excel con columnas:
+- `GET /api/reports/statistics/global` - Estadísticas globales
+- `GET /api/reports/export/event/{id}/pdf` - Exportar PDF
+- `GET /api/reports/export/event/{id}/csv` - Exportar CSV
 
-   - matricula (5 dígitos)
-   - nombre
-   - carrera (opcional)
-   - semestre (opcional)
-   - email (opcional)
+## Base de Datos
 
-2. Colocar archivo `alumnos.xlsx` en la raíz del proyecto
+### Tablas
 
-3. Acceder a: `http://localhost:8100/api/students/import-excel`
+- **users** - Usuarios del sistema
+- **events** - Eventos creados
+- **attendances** - Registro de asistencias
+- **pre_registros** - Pre-registros de estudiantes
+- **students** - Catálogo de estudiantes
 
-### Generación de Reportes
-
-- **PDF**: Reporte completo de evento con lista de asistentes
-- **CSV**: Exportación de datos para análisis
-- **Filtros**: Por evento, fecha, estado de validación
-
-## Arquitectura de Microservicios
-
-### API Gateway (Puerto 8100)
-
-- Punto de entrada único
-- Enrutamiento a microservicios
-- Manejo de CORS
-- Health checks
-
-### Users Service (Puerto 8101)
-
-- Autenticación con JWT
-- Gestión de usuarios
-- Encriptación con bcrypt
-- Verificación de tokens
-
-### Events Service (Puerto 8102)
-
-- CRUD de eventos
-- Registro de asistencias
-- Control de capacidad
-- Validación de asistencias
-- Finalización de eventos
-
-### Reports Service (Puerto 8103)
-
-- Estadísticas globales
-- Búsqueda de asistencias
-- Filtros avanzados
-- Exportación a CSV
-
-## Flujo de Datos
-
-```
-Frontend (5173)
-    ↓
-Vite Proxy (/api)
-    ↓
-API Gateway (8100)
-    ↓
-┌───────────┬──────────────┬────────────────┐
-│           │              │                │
-Users       Events         Reports
-Service     Service        Service
-(8101)      (8102)         (8103)
-```
-
-## Seguridad
-
-- **Autenticación**: JWT con expiración de 8 horas
-- **Encriptación**: bcrypt para contraseñas
-- **Validación**: Tokens en cada request
-- **CORS**: Configurado para desarrollo
-
-## Persistencia de Datos
-
-Los datos se almacenan en archivos JSON:
-
-- `users-service/users_db.json`: Usuarios
-- `events-service/events_db.json`: Eventos
-- `events-service/attendances_db.json`: Asistencias
-
-## Solución de Problemas
-
-### Error: Puerto en uso
+### Inicialización
 
 ```bash
-# Verificar puertos ocupados
-netstat -ano | findstr "8100 8101 8102 8103 5173"
-
-# Cerrar proceso (Windows)
-taskkill /PID [número] /F
+cd backend-microservices
+python init_database.py
 ```
 
-### Error: Módulo no encontrado
+## Flujo de Trabajo
 
-```bash
-# Reinstalar dependencias del backend
-cd backend-microservices/[servicio]
-pip install -r requirements.txt --force-reinstall
+### Crear un Evento
 
-# Reinstalar dependencias del frontend
-cd frontend-final
-npm install
-```
+1. Login como Admin o Encargado
+2. Ir a "Gestión de Eventos"
+3. Click en "Crear Evento"
+4. Completar formulario (nombre, descripción, fecha, ubicación, capacidad)
+5. Opcionalmente subir una imagen del evento
+6. Guardar evento
 
-### Error: CORS
+### Pre-registrarse a un Evento
 
-Asegúrate de que:
+1. Login como Estudiante
+2. Ver eventos disponibles en el dashboard
+3. Click en "Pre-registrarse" en el evento deseado
+4. Ingresar matrícula (5 dígitos numéricos)
+5. Confirmar pre-registro
 
-1. Todos los servicios estén corriendo
-2. El API Gateway esté en puerto 8100
-3. El frontend esté usando el proxy de Vite
+### Registrar Asistencias
 
-### Error 503: Service Unavailable
+1. Login como Admin o Encargado
+2. Ir al evento activo
+3. Click en "Registrar Asistencias"
+4. Escanear código de barras con la cámara o ingresar matrícula manualmente (5 dígitos)
+5. El sistema busca automáticamente al estudiante en la base de datos
+6. Si el estudiante existe, muestra su nombre, carrera y semestre
+7. La asistencia se registra automáticamente
+8. En la lista de asistencias registradas, se muestra el nombre del estudiante (o "Desconocido" si no está en la BD)
 
-Verifica que todos los microservicios estén corriendo:
+### Generar Reportes
 
-```bash
-# Windows
-netstat -ano | findstr "8101 8102 8103"
-
-# Deben aparecer 3 líneas
-```
+1. Login como Admin o Encargado
+2. Ir al evento deseado
+3. Click en "Exportar PDF" o "Exportar CSV"
+4. El reporte se descarga automáticamente con:
+   - Información del evento
+   - Lista de asistentes con matrícula, nombre y carrera
+   - Hora de registro
 
 ## Desarrollo
 
-### Agregar Nuevas Funcionalidades
+### Agregar Funcionalidades
 
-1. **Backend**: Agrega endpoints en el microservicio correspondiente
-2. **API Gateway**: Agrega la ruta proxy si es necesario
-3. **Frontend**: Crea componentes y páginas según necesites
+1. Identificar el microservicio correspondiente
+2. Agregar endpoint en `app.py`
+3. Actualizar frontend si es necesario
 
-### Estructura de Código
+### Modificar Base de Datos
 
-- **Backend**: Cada servicio es independiente con su propia lógica
-- **Frontend**: Componentes reutilizables en `src/components/`
-- **Estilos**: CSS modular por componente
+1. Editar `backend-microservices/database.py`
+2. Ejecutar `python init_database.py`
 
-## Próximos Pasos
+## Solución de Problemas
 
-### Mejoras Sugeridas
+**Error: "Servicio no disponible"**
 
-1. **Base de Datos**: Migrar de JSON a PostgreSQL/MongoDB
-2. **Docker**: Containerizar microservicios
-3. **Tests**: Agregar pruebas unitarias e integración
-4. **CI/CD**: Pipeline de despliegue automatizado
-5. **Logs**: Sistema centralizado de logging
-6. **Monitoring**: Métricas y alertas
+- Verificar que todos los microservicios estén ejecutándose
+- Revisar que los puertos no estén ocupados
 
-## Acceso desde Red Local
+**Error: "Token inválido"**
 
-### Configuración para Dispositivos Móviles
+- Hacer logout y login nuevamente
+- Verificar que Users Service esté activo
 
-1. Obtener IP del servidor:
+**Error 404 al buscar estudiantes**
 
-   ```bash
-   ipconfig
-   # Buscar: Dirección IPv4 (ej: 192.168.1.100)
-   ```
+- Importar estudiantes desde Excel con `IMPORTAR_ESTUDIANTES.bat`
+- Verificar que las matrículas tengan exactamente 5 dígitos
 
-2. El archivo `vite.config.js` ya está configurado con `host: '0.0.0.0'`
+**Las imágenes de eventos no se muestran**
 
-3. Desde dispositivo móvil en la misma red WiFi:
+- Verificar que el API Gateway esté ejecutándose
+- Reiniciar todos los servicios con `INICIO_RAPIDO.bat`
+- Las imágenes se sirven a través de `/api/uploads/images/`
 
-   - Acceder a: `http://IP_SERVIDOR:5173`
-   - Ejemplo: `http://192.168.1.100:5173`
+**PDF no se puede abrir**
 
-4. Configurar firewall de Windows si es necesario:
-   - Permitir puerto 5173 (Frontend)
-   - Permitir puerto 8100 (API Gateway)
+- Reiniciar API Gateway y Reports Service
 
-## Contribuciones
+**Estudiantes aparecen como "Desconocido" en asistencias**
 
-Para contribuir al proyecto:
+- Verificar que los estudiantes estén importados en la base de datos
+- Asegurarse de que las matrículas coincidan exactamente (5 dígitos)
+- Reiniciar el Events Service para aplicar cambios
 
-1. Fork el repositorio
-2. Crea una rama para tu feature
-3. Commit tus cambios
-4. Push a la rama
-5. Crea un Pull Request
+**Error 403 al finalizar evento**
 
----
+- Solo el organizador del evento o un administrador pueden finalizarlo
+- Verificar el rol del usuario en localStorage
 
-**Versión**: 2.0.0  
-**Última actualización**: Noviembre 2025  
-**Proyecto Académico**: Sistema de Gestión de Asistencias
+## Seguridad
+
+- Contraseñas encriptadas con bcrypt (factor de costo 12)
+- Autenticación mediante JWT con expiración configurable
+- Validación de permisos por rol en cada endpoint
+- Tokens incluyen información de usuario y rol
+- Protección CORS configurada en todos los servicios

@@ -22,6 +22,7 @@ import "./styles/mobile.css";
 
 // Configurar baseURL de axios para usar el proxy de Vite
 axios.defaults.baseURL = "/api";
+axios.defaults.timeout = 30000; // 30 segundos timeout
 
 // Configurar React Query con caché optimizado
 const queryClient = new QueryClient({
@@ -41,16 +42,34 @@ axios.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
+    console.error("[API Request Error]", error);
     return Promise.reject(error);
   }
 );
 
 axios.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(
+      `[API Response] ${response.config.method?.toUpperCase()} ${
+        response.config.url
+      } - ${response.status}`
+    );
+    return response;
+  },
   (error) => {
+    console.error(
+      `[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
+      {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      }
+    );
+
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");

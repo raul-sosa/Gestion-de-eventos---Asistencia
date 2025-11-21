@@ -46,7 +46,6 @@ function AttendanceRegister() {
         studentInfo = studentRes.data;
       } catch (err) {
         // Estudiante no encontrado en BD, continuar sin info
-        console.log("Estudiante no encontrado en BD");
       }
 
       // Registrar asistencia
@@ -56,7 +55,7 @@ function AttendanceRegister() {
       });
 
       setLastScanned({
-        credencial: barcode,
+        matricula: barcode,
         nombre: studentInfo?.nombre || "Desconocido",
         carrera: studentInfo?.carrera || "",
         semestre: studentInfo?.semestre || "",
@@ -84,8 +83,7 @@ function AttendanceRegister() {
 
   const handleValidate = async (attendanceId, validated) => {
     try {
-      await axios.put("/attendances/validate", {
-        id_asistencia: attendanceId,
+      await axios.put(`/attendances/${attendanceId}/validate`, {
         validado: validated,
       });
       loadEventData();

@@ -8,10 +8,14 @@ env/
 venv/
 ENV/
 *.egg-info/
+*.pyc
 
 # Database files
 *_db.json
 database.json
+*.db
+*.sqlite
+*.sqlite3
 
 # Node
 node_modules/
@@ -20,6 +24,7 @@ dist-ssr/
 *.local
 .npm
 .yarn
+package-lock.json
 
 # Logs
 *.log
@@ -49,3 +54,16 @@ build/
 .env
 .env.local
 .env.*.local
+
+# Uploads
+backend-microservices/events-service/uploads/images/*
+!backend-microservices/events-service/uploads/images/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Excel files (opcional - descomentar si no quieres subir el Excel)
+# *.xlsx
+# *.xls

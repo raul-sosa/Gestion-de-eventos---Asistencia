@@ -1,13 +1,16 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-import json
 import os
 import uuid
 import requests
+import shutil
+from db_helpers import *
 
 app = FastAPI(title="Events Service - Sistema de Asistencias")
 
@@ -22,7 +25,12 @@ app.add_middleware(
 security = HTTPBearer()
 USERS_SERVICE_URL = "http://localhost:8101"
 
-DB_FILE = "events_db.json"
+# Crear carpeta para imágenes y montar como estática
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "images")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")
+
+# ==================== MODELOS ====================
 
 class EventCreate(BaseModel):
     nombre: str
@@ -61,39 +69,45 @@ class AttendanceCreate(BaseModel):
     id_credencial: str
     id_evento: str
 
+class Student(BaseModel):
+    id: Optional[str] = None
+    matricula: str
+    nombre: str
+    carrera: Optional[str] = None
+    semestre: Optional[int] = None
+    email: Optional[str] = None
+
 class Attendance(BaseModel):
     id: str
     id_credencial: str
     id_evento: str
     hora_registro: str
     validado: bool
+    estudiante: Optional[Student] = None
 
 class AttendanceValidation(BaseModel):
     validado: bool
 
-def load_database():
-    if not os.path.exists(DB_FILE):
-        initial_data = {
-            "events": [],
-            "attendances": [],
-            "pre_registros": [],
-            "students": []
-        }
-        save_database(initial_data)
-        return initial_data
-    
-    with open(DB_FILE, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        # Asegurar que existan las nuevas claves
-        if "pre_registros" not in data:
-            data["pre_registros"] = []
-        if "students" not in data:
-            data["students"] = []
-        return data
+class PreRegistroCreate(BaseModel):
+    id_evento: str
+    id_estudiante: str
+    matricula: str
 
-def save_database(data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+class PreRegistro(BaseModel):
+    id: str
+    id_evento: str
+    id_estudiante: str
+    matricula: str
+    fecha_registro: str
+
+class StudentCreate(BaseModel):
+    matricula: str
+    nombre: str
+    carrera: Optional[str] = None
+    semestre: Optional[int] = None
+    email: Optional[str] = None
+
+# ==================== AUTENTICACIÓN ====================
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -114,342 +128,126 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             detail="Servicio de usuarios no disponible"
         )
 
+# ==================== EVENTOS ====================
+
 @app.post("/api/events", response_model=Event, status_code=status.HTTP_201_CREATED)
 def create_event(event: EventCreate, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    
-    new_event = {
-        "id": str(uuid.uuid4()),
-        "nombre": event.nombre,
-        "descripcion": event.descripcion,
-        "fecha_hora_inicio": event.fecha_hora_inicio,
-        "fecha_hora_fin": event.fecha_hora_fin,
-        "ubicacion": event.ubicacion,
-        "capacidad_maxima": event.capacidad_maxima,
-        "estado": "activo",
-        "organizador_id": token_data["user_id"],
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-        "imagen_url": event.imagen_url
-    }
-    
-    db["events"].append(new_event)
-    save_database(db)
-    
+    new_event = create_event_db(event, token_data["user_id"])
     return new_event
 
 @app.get("/api/events", response_model=List[Event])
-def get_events(
-    estado: Optional[str] = None,
-    token_data: dict = Depends(verify_token)
-):
-    db = load_database()
-    events = db["events"]
-    
-    if estado:
-        events = [e for e in events if e["estado"] == estado]
-    
+def get_events(estado: Optional[str] = None, token_data: dict = Depends(verify_token)):
+    events = get_all_events(estado)
     return events
 
 @app.get("/api/events/{event_id}", response_model=Event)
 def get_event(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    event = next((e for e in db["events"] if e["id"] == event_id), None)
-    
+    event = get_event_by_id(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     return event
 
 @app.put("/api/events/{event_id}", response_model=Event)
-def update_event(
-    event_id: str,
-    event_update: EventUpdate,
-    token_data: dict = Depends(verify_token)
-):
-    db = load_database()
-    event_index = next((i for i, e in enumerate(db["events"]) if e["id"] == event_id), None)
-    
-    if event_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
-    
-    event = db["events"][event_index]
+def update_event_endpoint(event_id: str, event_update: EventUpdate, token_data: dict = Depends(verify_token)):
+    event = get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     
     if event["organizador_id"] != token_data["user_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permisos para editar este evento"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para editar este evento")
     
-    update_data = event_update.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        event[key] = value
-    
-    event["updated_at"] = datetime.now().isoformat()
-    db["events"][event_index] = event
-    save_database(db)
-    
-    return event
+    updated_event = update_event(event_id, event_update)
+    return updated_event
 
 @app.delete("/api/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_event(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    event_index = next((i for i, e in enumerate(db["events"]) if e["id"] == event_id), None)
+def delete_event_endpoint(event_id: str, token_data: dict = Depends(verify_token)):
+    event = get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     
-    if event_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
+    # Admin puede borrar cualquier evento, otros solo los suyos
+    if token_data.get("role") != "admin" and event["organizador_id"] != token_data["user_id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para eliminar este evento")
     
-    event = db["events"][event_index]
-    
-    if event["organizador_id"] != token_data["user_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permisos para eliminar este evento"
-        )
-    
-    db["events"].pop(event_index)
-    
-    db["attendances"] = [a for a in db["attendances"] if a["id_evento"] != event_id]
-    
-    save_database(db)
+    delete_event(event_id)
     return None
+
+# ==================== ASISTENCIAS ====================
 
 @app.post("/api/attendances", response_model=Attendance, status_code=status.HTTP_201_CREATED)
 def register_attendance(attendance: AttendanceCreate, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    
-    event = next((e for e in db["events"] if e["id"] == attendance.id_evento), None)
+    event = get_event_by_id(attendance.id_evento)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     
+    # Solo admin puede registrar asistencias en eventos finalizados
     if event["estado"] != "activo":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El evento no está activo"
-        )
+        if token_data.get("role") != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el administrador puede registrar asistencias en eventos finalizados")
     
-    existing = next((a for a in db["attendances"] 
-                    if a["id_credencial"] == attendance.id_credencial 
-                    and a["id_evento"] == attendance.id_evento), None)
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Asistencia ya registrada para este estudiante"
-        )
-    
+    # Verificar capacidad
     if event["capacidad_maxima"]:
-        current_attendances = len([a for a in db["attendances"] if a["id_evento"] == attendance.id_evento])
-        if current_attendances >= event["capacidad_maxima"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Capacidad máxima del evento alcanzada"
-            )
+        current_attendances = get_event_attendances(attendance.id_evento)
+        if len(current_attendances) >= event["capacidad_maxima"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Capacidad máxima del evento alcanzada")
     
-    new_attendance = {
-        "id": str(uuid.uuid4()),
-        "id_credencial": attendance.id_credencial,
-        "id_evento": attendance.id_evento,
-        "hora_registro": datetime.now().isoformat(),
-        "validado": False
-    }
-    
-    db["attendances"].append(new_attendance)
-    save_database(db)
+    new_attendance = create_attendance(attendance.id_credencial, attendance.id_evento)
+    if not new_attendance:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asistencia ya registrada para este estudiante")
     
     return new_attendance
 
 @app.get("/api/events/{event_id}/attendances", response_model=List[Attendance])
-def get_event_attendances(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    
-    event = next((e for e in db["events"] if e["id"] == event_id), None)
+def get_attendances_endpoint(event_id: str, token_data: dict = Depends(verify_token)):
+    event = get_event_by_id(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     
-    attendances = [a for a in db["attendances"] if a["id_evento"] == event_id]
+    attendances = get_event_attendances(event_id)
     return attendances
 
 @app.put("/api/attendances/{attendance_id}/validate", response_model=Attendance)
-def validate_attendance(
-    attendance_id: str,
-    validation: AttendanceValidation,
-    token_data: dict = Depends(verify_token)
-):
-    db = load_database()
-    attendance_index = next((i for i, a in enumerate(db["attendances"]) if a["id"] == attendance_id), None)
-    
-    if attendance_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Asistencia no encontrada"
-        )
-    
-    db["attendances"][attendance_index]["validado"] = validation.validado
-    save_database(db)
-    
-    return db["attendances"][attendance_index]
+def validate_attendance_endpoint(attendance_id: str, validation: AttendanceValidation, token_data: dict = Depends(verify_token)):
+    attendance = validate_attendance(attendance_id, validation.validado)
+    if not attendance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asistencia no encontrada")
+    return attendance
 
-class AttendanceValidationBody(BaseModel):
-    id_asistencia: str
-    validado: bool
-
-@app.put("/api/attendances/validate")
-def validate_attendance_body(
-    validation: AttendanceValidationBody,
-    token_data: dict = Depends(verify_token)
-):
-    db = load_database()
-    attendance_index = next((i for i, a in enumerate(db["attendances"]) if a["id"] == validation.id_asistencia), None)
-    
-    if attendance_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Asistencia no encontrada"
-        )
-    
-    db["attendances"][attendance_index]["validado"] = validation.validado
-    save_database(db)
-    
-    return db["attendances"][attendance_index]
-
-@app.post("/api/events/{event_id}/finalize")
-def finalize_event(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    event_index = next((i for i, e in enumerate(db["events"]) if e["id"] == event_id), None)
-    
-    if event_index is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
-    
-    event = db["events"][event_index]
-    
-    if event["organizador_id"] != token_data["user_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permisos para finalizar este evento"
-        )
-    
-    event["estado"] = "finalizado"
-    event["updated_at"] = datetime.now().isoformat()
-    
-    for i, attendance in enumerate(db["attendances"]):
-        if attendance["id_evento"] == event_id:
-            db["attendances"][i]["validado"] = True
-    
-    db["events"][event_index] = event
-    save_database(db)
-    
-    return {"message": "Evento finalizado y asistencias validadas", "event": event}
-
-@app.get("/api/events/{event_id}/statistics")
-def get_event_statistics(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    
-    event = next((e for e in db["events"] if e["id"] == event_id), None)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
-    
-    attendances = [a for a in db["attendances"] if a["id_evento"] == event_id]
-    validated = [a for a in attendances if a["validado"]]
-    
-    return {
-        "event_id": event_id,
-        "event_name": event["nombre"],
-        "total_attendances": len(attendances),
-        "validated_attendances": len(validated),
-        "pending_validation": len(attendances) - len(validated),
-        "capacity_max": event["capacidad_maxima"],
-        "capacity_used_percentage": (len(attendances) / event["capacidad_maxima"] * 100) if event["capacidad_maxima"] else None
-    }
-
-class PreRegistroCreate(BaseModel):
-    id_evento: str
-    id_estudiante: str
-
-class PreRegistro(BaseModel):
-    id: str
-    id_evento: str
-    id_estudiante: str
-    fecha_registro: str
-
-class StudentCreate(BaseModel):
-    matricula: str
-    nombre: str
-    carrera: Optional[str] = None
-    semestre: Optional[int] = None
-    email: Optional[str] = None
+# ==================== PRE-REGISTROS ====================
 
 @app.post("/api/pre-registros", response_model=PreRegistro, status_code=status.HTTP_201_CREATED)
-def create_pre_registro(pre_registro: PreRegistroCreate, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    
-    # Verificar que el evento existe
-    event = next((e for e in db["events"] if e["id"] == pre_registro.id_evento), None)
+def create_pre_registro_endpoint(pre_registro: PreRegistroCreate, token_data: dict = Depends(verify_token)):
+    event = get_event_by_id(pre_registro.id_evento)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
     
-    # Verificar que no esté ya pre-registrado
-    existing = next((p for p in db["pre_registros"] 
-                    if p["id_evento"] == pre_registro.id_evento 
-                    and p["id_estudiante"] == pre_registro.id_estudiante), None)
+    # No permitir pre-registros en eventos finalizados
+    if event["estado"] == "finalizado":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se pueden hacer pre-registros en eventos finalizados")
     
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya está pre-registrado en este evento"
-        )
+    # Validar formato de matrícula
+    if not pre_registro.matricula.isdigit() or len(pre_registro.matricula) != 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La matrícula debe tener exactamente 5 dígitos")
     
-    new_pre_registro = {
-        "id": str(uuid.uuid4()),
-        "id_evento": pre_registro.id_evento,
-        "id_estudiante": pre_registro.id_estudiante,
-        "fecha_registro": datetime.now().isoformat()
-    }
-    
-    db["pre_registros"].append(new_pre_registro)
-    save_database(db)
+    new_pre_registro = create_pre_registro(pre_registro.id_evento, pre_registro.id_estudiante, pre_registro.matricula)
+    if not new_pre_registro:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ya está pre-registrado en este evento")
     
     return new_pre_registro
 
 @app.get("/api/events/{event_id}/pre-registros")
-def get_event_pre_registros(event_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    pre_registros = [p for p in db["pre_registros"] if p["id_evento"] == event_id]
+def get_pre_registros_endpoint(event_id: str, token_data: dict = Depends(verify_token)):
+    pre_registros = get_event_pre_registros(event_id)
     return pre_registros
 
 @app.get("/api/pre-registros/student/{student_id}")
 def get_student_pre_registros(student_id: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    pre_registros = [p for p in db["pre_registros"] if p["id_estudiante"] == student_id]
+    pre_registros = get_student_pre_registros_db(student_id)
     
     # Enriquecer con información del evento
     result = []
     for pre_reg in pre_registros:
-        event = next((e for e in db["events"] if e["id"] == pre_reg["id_evento"]), None)
+        event = get_event_by_id(pre_reg["id_evento"])
         if event:
             result.append({
                 **pre_reg,
@@ -460,33 +258,36 @@ def get_student_pre_registros(student_id: str, token_data: dict = Depends(verify
     
     return result
 
+# ==================== ESTUDIANTES ====================
+
+@app.get("/api/students")
+def get_students_endpoint(token_data: dict = Depends(verify_token)):
+    students = get_all_students()
+    return students
+
+@app.get("/api/students/search/{matricula}")
+def search_student_endpoint(matricula: str, token_data: dict = Depends(verify_token)):
+    student = get_student_by_matricula(matricula)
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado en la base de datos")
+    return student
+
 @app.post("/api/students/import-excel")
 def import_students_from_excel(token_data: dict = Depends(verify_token)):
     try:
         import pandas as pd
-        import openpyxl
     except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Pandas u openpyxl no están instalados"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Pandas no está instalado")
     
     excel_path = "../../alumnos.xlsx"
     if not os.path.exists(excel_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Archivo alumnos.xlsx no encontrado en {excel_path}"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Archivo alumnos.xlsx no encontrado")
     
     try:
         df = pd.read_excel(excel_path)
-        
-        # Normalizar nombres de columnas
         df.columns = df.columns.str.lower().str.strip()
         
-        db = load_database()
-        imported_count = 0
-        
+        students_list = []
         for _, row in df.iterrows():
             matricula = str(row.get('matricula') or row.get('matrícula', ''))
             nombre = str(row.get('nombre', ''))
@@ -494,57 +295,82 @@ def import_students_from_excel(token_data: dict = Depends(verify_token)):
             if not matricula or not nombre:
                 continue
             
-            # Verificar si ya existe
-            existing = next((s for s in db["students"] if s["matricula"] == matricula), None)
-            if existing:
-                continue
-            
-            student = {
-                "id": str(uuid.uuid4()),
-                "matricula": matricula,
-                "nombre": nombre,
-                "carrera": str(row.get('carrera', '')),
-                "semestre": int(row.get('semestre', 0)) if pd.notna(row.get('semestre')) else None,
-                "email": str(row.get('email', '')) if pd.notna(row.get('email')) else None
-            }
-            
-            db["students"].append(student)
-            imported_count += 1
+            students_list.append({
+                'matricula': matricula,
+                'nombre': nombre,
+                'carrera': str(row.get('carrera', '')),
+                'semestre': int(row.get('semestre', 0)) if pd.notna(row.get('semestre')) else None,
+                'email': str(row.get('email', '')) if pd.notna(row.get('email')) else None
+            })
         
-        save_database(db)
+        imported_count = import_students_bulk(students_list)
+        total_students = len(get_all_students())
         
-        return {
-            "message": f"Se importaron {imported_count} estudiantes",
-            "total_students": len(db["students"])
-        }
+        return {"message": f"Se importaron {imported_count} estudiantes", "total_students": total_students}
     
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al importar: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al importar: {str(e)}")
 
-@app.get("/api/students/search/{matricula}")
-def search_student(matricula: str, token_data: dict = Depends(verify_token)):
-    db = load_database()
-    student = next((s for s in db["students"] if s["matricula"] == matricula), None)
-    
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Estudiante no encontrado en la base de datos"
-        )
-    
-    return student
+# ==================== ESTADÍSTICAS ====================
 
-@app.get("/api/students")
-def get_all_students(token_data: dict = Depends(verify_token)):
-    db = load_database()
-    return db["students"]
+@app.get("/api/events/{event_id}/statistics")
+def get_statistics_endpoint(event_id: str, token_data: dict = Depends(verify_token)):
+    stats = get_event_statistics(event_id)
+    if not stats:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
+    return stats
+
+@app.post("/api/events/{event_id}/finalize")
+def finalize_event_endpoint(event_id: str, token_data: dict = Depends(verify_token)):
+    event = get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
+    
+    # Solo el organizador o un admin pueden finalizar el evento
+    if event["organizador_id"] != token_data["user_id"] and token_data.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para finalizar este evento")
+    
+    # Actualizar estado del evento
+    event_update = EventUpdate(estado="finalizado")
+    updated_event = update_event(event_id, event_update)
+    
+    # Validar todas las asistencias
+    attendances = get_event_attendances(event_id)
+    for att in attendances:
+        validate_attendance(att['id'], True)
+    
+    return {"message": "Evento finalizado y asistencias validadas", "event": updated_event}
+
+# ==================== IMÁGENES ====================
+
+@app.post("/api/events/upload-image")
+async def upload_image(file: UploadFile = File(...), token_data: dict = Depends(verify_token)):
+    # Validar tipo de archivo
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    file_extension = os.path.splitext(file.filename)[1].lower()
+    
+    if file_extension not in allowed_extensions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de archivo no permitido")
+    
+    # Generar nombre único
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    
+    # Guardar archivo
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al guardar imagen: {str(e)}")
+    
+    # Retornar path relativo
+    return {"image_path": f"/uploads/images/{unique_filename}", "filename": unique_filename}
+
+# ==================== ROOT ====================
 
 @app.get("/")
 def root():
-    return {"service": "Events Service", "version": "1.0", "status": "running"}
+    return {"service": "Events Service", "version": "2.0", "status": "running", "database": "SQL"}
 
 if __name__ == "__main__":
     import uvicorn

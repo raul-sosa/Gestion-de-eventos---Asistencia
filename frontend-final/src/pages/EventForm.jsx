@@ -17,6 +17,9 @@ function EventForm() {
     capacidad_maxima: "",
     imagen_url: "",
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,14 +51,60 @@ function EventForm() {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async () => {
+    if (!imageFile) return null;
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", imageFile);
+
+      const response = await axios.post("/events/upload-image", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data.image_path;
+    } catch (error) {
+      console.error("Error al subir imagen:", error);
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
+      let imagePath = formData.imagen_url;
+
+      // Si hay una nueva imagen, subirla primero
+      if (imageFile) {
+        const uploadedPath = await uploadImage();
+        if (uploadedPath) {
+          imagePath = uploadedPath;
+        }
+      }
+
       const submitData = {
         ...formData,
+        imagen_url: imagePath,
         capacidad_maxima: formData.capacidad_maxima
           ? parseInt(formData.capacidad_maxima)
           : null,
@@ -155,22 +204,29 @@ function EventForm() {
           </div>
 
           <div className="form-group">
-            <label>URL de Imagen (opcional)</label>
+            <label>Imagen del Evento (opcional)</label>
             <input
-              type="url"
-              name="imagen_url"
-              value={formData.imagen_url}
-              onChange={handleChange}
-              placeholder="https://ejemplo.com/imagen.jpg"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="file-input"
             />
-            {formData.imagen_url && (
+            <small className="form-hint">
+              Formatos permitidos: JPG, PNG, GIF, WebP
+            </small>
+
+            {(imagePreview || formData.imagen_url) && (
               <div className="image-preview">
                 <img
-                  src={formData.imagen_url}
+                  src={imagePreview || formData.imagen_url}
                   alt="Preview"
                   onError={(e) => (e.target.style.display = "none")}
                 />
               </div>
+            )}
+
+            {uploadingImage && (
+              <div className="upload-progress">Subiendo imagen...</div>
             )}
           </div>
 
@@ -181,11 +237,20 @@ function EventForm() {
               type="button"
               onClick={() => navigate("/events")}
               className="btn-secondary"
+              disabled={loading || uploadingImage}
             >
               Cancelar
             </button>
-            <button type="submit" disabled={loading} className="btn-primary">
-              {loading ? "Guardando..." : "Guardar Evento"}
+            <button
+              type="submit"
+              disabled={loading || uploadingImage}
+              className="btn-primary"
+            >
+              {uploadingImage
+                ? "Subiendo imagen..."
+                : loading
+                ? "Guardando..."
+                : "Guardar Evento"}
             </button>
           </div>
         </form>
