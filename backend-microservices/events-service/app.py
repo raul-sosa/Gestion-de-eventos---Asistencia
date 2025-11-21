@@ -305,6 +305,29 @@ def validate_attendance(
     
     return db["attendances"][attendance_index]
 
+class AttendanceValidationBody(BaseModel):
+    id_asistencia: str
+    validado: bool
+
+@app.put("/api/attendances/validate")
+def validate_attendance_body(
+    validation: AttendanceValidationBody,
+    token_data: dict = Depends(verify_token)
+):
+    db = load_database()
+    attendance_index = next((i for i, a in enumerate(db["attendances"]) if a["id"] == validation.id_asistencia), None)
+    
+    if attendance_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asistencia no encontrada"
+        )
+    
+    db["attendances"][attendance_index]["validado"] = validation.validado
+    save_database(db)
+    
+    return db["attendances"][attendance_index]
+
 @app.post("/api/events/{event_id}/finalize")
 def finalize_event(event_id: str, token_data: dict = Depends(verify_token)):
     db = load_database()
@@ -417,6 +440,25 @@ def get_event_pre_registros(event_id: str, token_data: dict = Depends(verify_tok
     db = load_database()
     pre_registros = [p for p in db["pre_registros"] if p["id_evento"] == event_id]
     return pre_registros
+
+@app.get("/api/pre-registros/student/{student_id}")
+def get_student_pre_registros(student_id: str, token_data: dict = Depends(verify_token)):
+    db = load_database()
+    pre_registros = [p for p in db["pre_registros"] if p["id_estudiante"] == student_id]
+    
+    # Enriquecer con información del evento
+    result = []
+    for pre_reg in pre_registros:
+        event = next((e for e in db["events"] if e["id"] == pre_reg["id_evento"]), None)
+        if event:
+            result.append({
+                **pre_reg,
+                "evento_nombre": event["nombre"],
+                "evento_fecha": event["fecha_hora_inicio"],
+                "evento_ubicacion": event.get("ubicacion", "N/A")
+            })
+    
+    return result
 
 @app.post("/api/students/import-excel")
 def import_students_from_excel(token_data: dict = Depends(verify_token)):

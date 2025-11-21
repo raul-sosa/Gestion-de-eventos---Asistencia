@@ -115,7 +115,7 @@ function Reports() {
 
     try {
       const response = await axios.get(
-        `/reports/event/${filters.event_id}/pdf`,
+        `/reports/export/event/${filters.event_id}/pdf`,
         {
           responseType: "blob",
         }

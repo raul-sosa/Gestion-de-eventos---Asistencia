@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -409,12 +409,14 @@ def export_event_pdf(
     
     doc.build(elements)
     buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
     
-    return StreamingResponse(
-        iter([buffer.getvalue()]),
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=reporte_{event['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            "Content-Disposition": f"attachment; filename=reporte_{event['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+            "Content-Length": str(len(pdf_bytes))
         }
     )
 

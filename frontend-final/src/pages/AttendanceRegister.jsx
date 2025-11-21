@@ -35,8 +35,9 @@ function AttendanceRegister() {
   };
 
   const handleScan = async (barcode) => {
-    if (!eventId) return;
+    if (!id) return;
 
+    setLoading(true);
     try {
       // Buscar estudiante en la BD
       let studentInfo = null;
@@ -45,24 +46,39 @@ function AttendanceRegister() {
         studentInfo = studentRes.data;
       } catch (err) {
         // Estudiante no encontrado en BD, continuar sin info
+        console.log("Estudiante no encontrado en BD");
       }
 
       // Registrar asistencia
-      await axios.post("/attendances", {
+      const response = await axios.post("/attendances", {
         id_credencial: barcode,
-        id_evento: eventId,
+        id_evento: id,
       });
 
       setLastScanned({
         credencial: barcode,
         nombre: studentInfo?.nombre || "Desconocido",
         carrera: studentInfo?.carrera || "",
+        semestre: studentInfo?.semestre || "",
         timestamp: new Date().toLocaleString(),
       });
 
-      loadEventData();
+      setMessage({
+        type: "success",
+        text: `Asistencia registrada: ${studentInfo?.nombre || barcode}`,
+      });
+      await loadEventData();
     } catch (error) {
-      alert(error.response?.data?.detail || "Error al registrar asistencia");
+      console.error("Error al registrar:", error.response?.data);
+      const errorMsg =
+        error.response?.data?.detail || "Error al registrar asistencia";
+      setMessage({
+        type: "error",
+        text: errorMsg,
+      });
+    } finally {
+      setLoading(false);
+      setTimeout(() => setMessage(null), 5000);
     }
   };
 
