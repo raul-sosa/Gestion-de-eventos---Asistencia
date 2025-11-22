@@ -111,56 +111,97 @@ function StudentDashboard() {
 
               return (
                 <div key={event.id} className="event-card-student">
-                  <div className="event-header">
-                    <h3>{event.nombre}</h3>
-                    <span className="event-status">{event.estado}</span>
-                  </div>
+                  {event.imagen_url && (
+                    <div className="event-card-image">
+                      <img
+                        src={event.imagen_url}
+                        alt={event.nombre}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          e.target.parentElement.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
 
-                  <div className="event-details">
-                    {event.descripcion && (
-                      <p className="event-description">{event.descripcion}</p>
-                    )}
+                  <div className="event-card-content">
+                    <div className="event-header">
+                      <h3>{event.nombre}</h3>
+                      <span className="event-status">{event.estado}</span>
+                    </div>
 
-                    <div className="event-info">
-                      <div className="info-item">
-                        <strong>Fecha Inicio:</strong>
-                        <span>
-                          {new Date(event.fecha_hora_inicio).toLocaleString()}
-                        </span>
-                      </div>
+                    <div className="event-details">
+                      {event.descripcion && (
+                        <p className="event-description">{event.descripcion}</p>
+                      )}
 
-                      {event.fecha_hora_fin && (
+                      <div className="event-info">
                         <div className="info-item">
-                          <strong>Fecha Fin:</strong>
+                          <span className="info-icon calendar-icon"></span>
+                          <strong>Fecha Inicio:</strong>
                           <span>
-                            {new Date(event.fecha_hora_fin).toLocaleString()}
+                            {new Date(event.fecha_hora_inicio).toLocaleString(
+                              "es-MX",
+                              {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              }
+                            )}
                           </span>
                         </div>
-                      )}
 
-                      {event.ubicacion && (
-                        <div className="info-item">
-                          <strong>Ubicacion:</strong>
-                          <span>{event.ubicacion}</span>
-                        </div>
-                      )}
+                        {event.fecha_hora_fin && (
+                          <div className="info-item">
+                            <span className="info-icon clock-icon"></span>
+                            <strong>Fecha Fin:</strong>
+                            <span>
+                              {new Date(event.fecha_hora_fin).toLocaleString(
+                                "es-MX",
+                                {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                }
+                              )}
+                            </span>
+                          </div>
+                        )}
 
-                      {event.capacidad_maxima && (
-                        <div className="info-item">
-                          <strong>Capacidad:</strong>
-                          <span>{event.capacidad_maxima} personas</span>
-                        </div>
-                      )}
+                        {event.ubicacion && (
+                          <div className="info-item">
+                            <span className="info-icon location-icon"></span>
+                            <strong>Ubicación:</strong>
+                            <span>{event.ubicacion}</span>
+                          </div>
+                        )}
+
+                        {event.capacidad_maxima && (
+                          <div className="info-item">
+                            <span className="info-icon users-icon"></span>
+                            <strong>Capacidad:</strong>
+                            <span>{event.capacidad_maxima} personas</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <button
-                    onClick={() => handlePreRegister(event.id)}
-                    className="btn-preregister"
-                    disabled={isRegistered}
-                  >
-                    {isRegistered ? "Ya Pre-Registrado" : "Pre-Registrarme"}
-                  </button>
+                    <button
+                      onClick={() => handlePreRegister(event.id)}
+                      className="btn-preregister"
+                      disabled={isRegistered}
+                    >
+                      {isRegistered ? (
+                        <>
+                          <span className="btn-icon check-icon"></span>
+                          Ya Pre-Registrado
+                        </>
+                      ) : (
+                        <>
+                          <span className="btn-icon edit-icon"></span>
+                          Pre-Registrarme
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               );
             })}

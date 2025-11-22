@@ -59,25 +59,54 @@
 
 .events-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 2rem;
 }
 
 .event-card-student {
   background: white;
-  border-radius: 2px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(47, 62, 70, 0.12);
-  border-left: 4px solid var(--deep-teal);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(47, 62, 70, 0.15);
   transition: all 0.3s;
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(47, 62, 70, 0.1);
 }
 
 .event-card-student:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px rgba(47, 62, 70, 0.2);
-  border-left-color: var(--muted-teal);
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(47, 62, 70, 0.25);
+}
+
+.event-card-image {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    var(--ash-grey) 0%,
+    var(--muted-teal) 100%
+  );
+  position: relative;
+}
+
+.event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.event-card-student:hover .event-card-image img {
+  transform: scale(1.05);
+}
+
+.event-card-content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .event-header {
@@ -85,27 +114,29 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid var(--ash-grey);
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(47, 62, 70, 0.1);
 }
 
 .event-header h3 {
   color: var(--charcoal-blue);
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 700;
   margin: 0;
   flex: 1;
+  line-height: 1.3;
 }
 
 .event-status {
   background: var(--muted-teal);
   color: white;
-  padding: 0.3rem 0.8rem;
-  border-radius: 2px;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .event-details {
@@ -115,55 +146,210 @@
 
 .event-description {
   color: var(--dark-slate-grey);
-  margin: 0 0 1rem 0;
-  line-height: 1.6;
+  margin: 0 0 1.25rem 0;
+  line-height: 1.7;
+  font-size: 0.95rem;
 }
 
 .event-info {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
+  background: rgba(47, 62, 70, 0.03);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
 }
 
 .info-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.info-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Icono de Calendario */
+.calendar-icon::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--deep-teal);
+  border-radius: 3px;
+  top: 2px;
+}
+
+.calendar-icon::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 2px;
+  background: var(--deep-teal);
+  top: 8px;
+  left: 4px;
+}
+
+/* Icono de Reloj */
+.clock-icon::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--deep-teal);
+  border-radius: 50%;
+  top: 1px;
+  left: 1px;
+}
+
+.clock-icon::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 6px;
+  background: var(--deep-teal);
+  top: 5px;
+  left: 9px;
+}
+
+/* Icono de Ubicación */
+.location-icon::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 16px;
+  border: 2px solid var(--deep-teal);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  top: 0;
+  left: 4px;
+}
+
+.location-icon::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--deep-teal);
+  border-radius: 50%;
+  top: 3px;
+  left: 7px;
+}
+
+/* Icono de Usuarios */
+.users-icon::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--deep-teal);
+  border-radius: 50%;
+  top: 0;
+  left: 5px;
+}
+
+.users-icon::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 8px;
+  border: 2px solid var(--deep-teal);
+  border-radius: 8px 8px 0 0;
+  bottom: 0;
+  left: 2px;
 }
 
 .info-item strong {
   color: var(--charcoal-blue);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  min-width: 120px;
 }
 
 .info-item span {
   color: var(--dark-slate-grey);
   font-size: 0.95rem;
+  flex: 1;
 }
 
 .btn-preregister {
   width: 100%;
-  padding: 0.75rem 1.5rem;
+  padding: 1rem 1.5rem;
   background: var(--deep-teal);
   color: white;
-  border: 2px solid var(--deep-teal);
-  border-radius: 2px;
-  font-size: 0.9rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.3s;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.btn-preregister:hover {
+.btn-preregister:hover:not(:disabled) {
   background: var(--charcoal-blue);
-  border-color: var(--charcoal-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(47, 62, 70, 0.3);
+}
+
+.btn-preregister:disabled {
+  background: var(--ash-grey);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Icono de Check (✓) */
+.check-icon::before {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  top: 3px;
+  left: 6px;
+}
+
+/* Icono de Editar (📝) */
+.edit-icon::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 14px;
+  border: 2px solid white;
+  border-radius: 2px;
+  top: 2px;
+  left: 3px;
+}
+
+.edit-icon::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 2px;
+  background: white;
+  top: 6px;
+  left: 5px;
+  box-shadow: 0 4px 0 white;
 }
 
 @media (max-width: 768px) {
@@ -181,5 +367,23 @@
 
   .events-grid {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .event-card-image {
+    height: 180px;
+  }
+
+  .info-item {
+    gap: 0.5rem;
+  }
+
+  .info-item strong {
+    min-width: 100px;
+    font-size: 0.85rem;
+  }
+
+  .info-item span {
+    font-size: 0.9rem;
   }
 }

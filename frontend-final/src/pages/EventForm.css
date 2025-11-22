@@ -132,16 +132,29 @@
 
 .btn-primary {
   flex: 1;
-  background: #2c5282;
+  background: var(--deep-teal);
   color: white;
   padding: 0.875rem;
   border-radius: 8px;
   font-weight: 600;
   font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2a4365;
+  background: var(--charcoal-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(47, 62, 70, 0.3);
+}
+
+.btn-primary:disabled {
+  background: var(--ash-grey);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 @media (max-width: 768px) {
