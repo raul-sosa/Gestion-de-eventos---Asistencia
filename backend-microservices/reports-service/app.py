@@ -8,9 +8,10 @@ from datetime import datetime
 import json
 import io
 import csv
-import requests
+import httpx
 import sys
 import os
+from dotenv import load_dotenv
 
 # Agregar path para importar database
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,17 +19,28 @@ from database import get_connection
 
 app = FastAPI(title="Reports Service - Sistema de Asistencias")
 
+# Cargar variables de entorno desde la raíz del proyecto
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+load_dotenv(dotenv_path=ENV_PATH)
+
+# Configurar CORS dinámicamente
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_str == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 security = HTTPBearer()
-USERS_SERVICE_URL = "http://localhost:8101"
-EVENTS_SERVICE_URL = "http://localhost:8102"
+USERS_SERVICE_URL = os.getenv("USERS_SERVICE_URL", "http://localhost:8101")
+EVENTS_SERVICE_URL = os.getenv("EVENTS_SERVICE_URL", "http://localhost:8102")
 
 class AttendanceReport(BaseModel):
     id: str
@@ -56,57 +68,60 @@ class ReportFilters(BaseModel):
     validado: Optional[bool] = None
     search_term: Optional[str] = None
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        response = requests.post(
-            f"{USERS_SERVICE_URL}/api/users/verify-token",
-            headers={"Authorization": f"Bearer {credentials.credentials}"}
-        )
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{USERS_SERVICE_URL}/api/users/verify-token",
+                headers={"Authorization": f"Bearer {credentials.credentials}"}
             )
-    except requests.RequestException:
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token inválido"
+                )
+    except httpx.RequestError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Servicio de usuarios no disponible"
         )
 
-def get_events_data(token: str):
+async def get_events_data(token: str):
     try:
-        response = requests.get(
-            f"{EVENTS_SERVICE_URL}/api/events",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except requests.RequestException:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{EVENTS_SERVICE_URL}/api/events",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            return []
+    except httpx.RequestError:
         return []
 
-def get_event_attendances(event_id: str, token: str):
+async def get_event_attendances(event_id: str, token: str):
     try:
-        response = requests.get(
-            f"{EVENTS_SERVICE_URL}/api/events/{event_id}/attendances",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except requests.RequestException:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{EVENTS_SERVICE_URL}/api/events/{event_id}/attendances",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            return []
+    except httpx.RequestError:
         return []
 
 @app.post("/api/reports/attendances", response_model=List[AttendanceReport])
-def get_attendances_report(
+async def get_attendances_report(
     filters: ReportFilters,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
     token = credentials.credentials
-    events = get_events_data(token)
+    events = await get_events_data(token)
     
     all_attendances = []
     
@@ -116,7 +131,7 @@ def get_attendances_report(
         target_events = events
     
     for event in target_events:
-        attendances = get_event_attendances(event["id"], token)
+        attendances = await get_event_attendances(event["id"], token)
         
         for attendance in attendances:
             attendance_report = {
@@ -157,20 +172,20 @@ def get_attendances_report(
     return all_attendances
 
 @app.get("/api/reports/events", response_model=List[EventReport])
-def get_events_report(
+async def get_events_report(
     estado: Optional[str] = Query(None),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
     token = credentials.credentials
-    events = get_events_data(token)
+    events = await get_events_data(token)
     
     if estado:
         events = [e for e in events if e["estado"] == estado]
     
     events_report = []
     for event in events:
-        attendances = get_event_attendances(event["id"], token)
+        attendances = await get_event_attendances(event["id"], token)
         validated = [a for a in attendances if a["validado"]]
         
         event_report = {
@@ -189,12 +204,12 @@ def get_events_report(
     return events_report
 
 @app.post("/api/reports/export/attendances/csv")
-def export_attendances_csv(
+async def export_attendances_csv(
     filters: ReportFilters,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
-    attendances = get_attendances_report(filters, credentials, token_data)
+    attendances = await get_attendances_report(filters, credentials, token_data)
     
     output = io.StringIO()
     writer = csv.writer(output)
@@ -227,12 +242,12 @@ def export_attendances_csv(
     )
 
 @app.post("/api/reports/export/attendances/json")
-def export_attendances_json(
+async def export_attendances_json(
     filters: ReportFilters,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
-    attendances = get_attendances_report(filters, credentials, token_data)
+    attendances = await get_attendances_report(filters, credentials, token_data)
     
     json_data = json.dumps(attendances, indent=2, ensure_ascii=False)
     
@@ -245,12 +260,12 @@ def export_attendances_json(
     )
 
 @app.get("/api/reports/export/events/csv")
-def export_events_csv(
+async def export_events_csv(
     estado: Optional[str] = Query(None),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
-    events = get_events_report(estado, credentials, token_data)
+    events = await get_events_report(estado, credentials, token_data)
     
     output = io.StringIO()
     writer = csv.writer(output)
@@ -291,12 +306,12 @@ def export_events_csv(
     )
 
 @app.get("/api/reports/statistics/global")
-def get_global_statistics(
+async def get_global_statistics(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
 ):
     token = credentials.credentials
-    events = get_events_data(token)
+    events = await get_events_data(token)
     
     total_events = len(events)
     active_events = len([e for e in events if e["estado"] == "activo"])
@@ -312,7 +327,7 @@ def get_global_statistics(
     total_pre_registros = cursor.fetchone()[0]
     
     for event in events:
-        attendances = get_event_attendances(event["id"], token)
+        attendances = await get_event_attendances(event["id"], token)
         total_attendances += len(attendances)
     
     conn.close()
@@ -327,7 +342,7 @@ def get_global_statistics(
     }
 
 @app.get("/api/reports/export/event/{event_id}/pdf")
-def export_event_pdf(
+async def export_event_pdf(
     event_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     token_data: dict = Depends(verify_token)
@@ -347,7 +362,7 @@ def export_event_pdf(
         )
     
     token = credentials.credentials
-    events = get_events_data(token)
+    events = await get_events_data(token)
     event = next((e for e in events if e["id"] == event_id), None)
     
     if not event:
@@ -356,7 +371,7 @@ def export_event_pdf(
             detail="Evento no encontrado"
         )
     
-    attendances = get_event_attendances(event_id, token)
+    attendances = await get_event_attendances(event_id, token)
     
     # Buscar información de estudiantes en la base de datos
     conn = get_connection()
@@ -392,7 +407,7 @@ def export_event_pdf(
             matricula = att['id_credencial']
             
             # Buscar estudiante en la base de datos
-            cursor.execute("SELECT nombre, carrera FROM students WHERE matricula = ?", (matricula,))
+            cursor.execute("SELECT nombre, carrera FROM students WHERE matricula = %s", (matricula,))
             student_row = cursor.fetchone()
             
             if student_row:
@@ -445,6 +460,45 @@ def export_event_pdf(
 def root():
     return {"service": "Reports Service", "version": "1.0", "status": "running"}
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint para monitoreo"""
+    health_status = {
+        "status": "healthy",
+        "service": "Reports Service",
+        "checks": {}
+    }
+    
+    # Verificar base de datos
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        conn.close()
+        health_status["checks"]["database"] = "connected"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["database"] = f"error: {str(e)}"
+    
+    # Verificar conectividad con otros servicios
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{USERS_SERVICE_URL}/")
+            health_status["checks"]["users_service"] = "reachable" if response.status_code == 200 else "unreachable"
+    except:
+        health_status["checks"]["users_service"] = "unreachable"
+    
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{EVENTS_SERVICE_URL}/")
+            health_status["checks"]["events_service"] = "reachable" if response.status_code == 200 else "unreachable"
+    except:
+        health_status["checks"]["events_service"] = "unreachable"
+    
+    return health_status
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8103)
+    port = int(os.getenv("PORT", 8103))
+    uvicorn.run(app, host="0.0.0.0", port=port)

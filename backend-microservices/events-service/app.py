@@ -8,27 +8,56 @@ from typing import List, Optional
 from datetime import datetime
 import os
 import uuid
-import requests
+import httpx
 import shutil
+from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
 from db_helpers import *
 
 app = FastAPI(title="Events Service - Sistema de Asistencias")
 
+# Cargar variables de entorno desde la raíz del proyecto
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+load_dotenv(dotenv_path=ENV_PATH)
+
+# Configurar CORS dinámicamente
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_str == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 security = HTTPBearer()
-USERS_SERVICE_URL = "http://localhost:8101"
+USERS_SERVICE_URL = os.getenv("USERS_SERVICE_URL", "http://localhost:8101")
 
-# Crear carpeta para imágenes y montar como estática
+# Crear carpeta para imágenes locales (ya no usada en nube) y montar como estática
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")
+
+# Configuración de Cloudinary
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+    )
+    print(f"✓ Cloudinary configurado: {CLOUDINARY_CLOUD_NAME}")
+else:
+    print("⚠ Cloudinary no configurado. Las imágenes no se podrán subir a la nube.")
 
 # ==================== MODELOS ====================
 
@@ -109,20 +138,21 @@ class StudentCreate(BaseModel):
 
 # ==================== AUTENTICACIÓN ====================
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        response = requests.post(
-            f"{USERS_SERVICE_URL}/api/users/verify-token",
-            headers={"Authorization": f"Bearer {credentials.credentials}"}
-        )
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{USERS_SERVICE_URL}/api/users/verify-token",
+                headers={"Authorization": f"Bearer {credentials.credentials}"}
             )
-    except requests.RequestException:
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token inválido"
+                )
+    except httpx.RequestError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Servicio de usuarios no disponible"
@@ -176,6 +206,13 @@ def delete_event_endpoint(event_id: str, token_data: dict = Depends(verify_token
 
 @app.post("/api/attendances", response_model=Attendance, status_code=status.HTTP_201_CREATED)
 def register_attendance(attendance: AttendanceCreate, token_data: dict = Depends(verify_token)):
+    # Validar formato de matrícula (5 dígitos)
+    if not attendance.id_credencial.isdigit() or len(attendance.id_credencial) != 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="La matrícula debe tener exactamente 5 dígitos numéricos"
+        )
+    
     event = get_event_by_id(attendance.id_evento)
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento no encontrado")
@@ -330,21 +367,54 @@ def finalize_event_endpoint(event_id: str, token_data: dict = Depends(verify_tok
     if event["organizador_id"] != token_data["user_id"] and token_data.get("role") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para finalizar este evento")
     
-    # Actualizar estado del evento
-    event_update = EventUpdate(estado="finalizado")
-    updated_event = update_event(event_id, event_update)
+    # Usar transacción para garantizar atomicidad
+    from database import get_connection
+    conn = get_connection()
+    cursor = conn.cursor()
     
-    # Validar todas las asistencias
-    attendances = get_event_attendances(event_id)
-    for att in attendances:
-        validate_attendance(att['id'], True)
-    
-    return {"message": "Evento finalizado y asistencias validadas", "event": updated_event}
+    try:
+        # Actualizar estado del evento
+        cursor.execute(
+            "UPDATE events SET estado = %s, updated_at = %s WHERE id = %s",
+            ("finalizado", datetime.now().isoformat(), event_id)
+        )
+        
+        # Validar todas las asistencias
+        cursor.execute(
+            "UPDATE attendances SET validado = %s WHERE id_evento = %s",
+            (1, event_id)
+        )
+        
+        conn.commit()
+        
+        # Obtener evento actualizado
+        cursor.execute("SELECT * FROM events WHERE id = %s", (event_id,))
+        from database import row_to_dict
+        updated_event = row_to_dict(cursor.fetchone())
+        
+        conn.close()
+        
+        return {"message": "Evento finalizado y asistencias validadas", "event": updated_event}
+        
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al finalizar evento: {str(e)}"
+        )
 
 # ==================== IMÁGENES ====================
 
 @app.post("/api/events/upload-image")
 async def upload_image(file: UploadFile = File(...), token_data: dict = Depends(verify_token)):
+    # Verificar que Cloudinary esté configurado
+    if not CLOUDINARY_CLOUD_NAME or not CLOUDINARY_API_KEY or not CLOUDINARY_API_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cloudinary no está configurado. Configure las variables de entorno CLOUDINARY_*"
+        )
+    
     # Validar tipo de archivo
     allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
     file_extension = os.path.splitext(file.filename)[1].lower()
@@ -352,19 +422,23 @@ async def upload_image(file: UploadFile = File(...), token_data: dict = Depends(
     if file_extension not in allowed_extensions:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de archivo no permitido")
     
-    # Generar nombre único
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
-    
-    # Guardar archivo
+    # Subir a Cloudinary
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder="events",
+            resource_type="image"
+        )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al guardar imagen: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al subir imagen: {str(e)}")
     
-    # Retornar path relativo
-    return {"image_path": f"/uploads/images/{unique_filename}", "filename": unique_filename}
+    secure_url = upload_result.get("secure_url")
+    public_id = upload_result.get("public_id")
+    if not secure_url:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="No se pudo obtener URL de imagen")
+    
+    # Retornar URL absoluta alojada en Cloudinary
+    return {"imagen_url": secure_url, "public_id": public_id}
 
 # ==================== ROOT ====================
 
@@ -372,6 +446,38 @@ async def upload_image(file: UploadFile = File(...), token_data: dict = Depends(
 def root():
     return {"service": "Events Service", "version": "2.0", "status": "running", "database": "SQL"}
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint para monitoreo"""
+    health_status = {
+        "status": "healthy",
+        "service": "Events Service",
+        "checks": {}
+    }
+    
+    # Verificar base de datos
+    try:
+        from database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        conn.close()
+        health_status["checks"]["database"] = "connected"
+        health_status["database_type"] = "PostgreSQL" if os.getenv("DATABASE_URL", "").startswith("postgres") else "SQLite"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["database"] = f"error: {str(e)}"
+    
+    # Verificar Cloudinary
+    if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+        health_status["checks"]["cloudinary"] = "configured"
+    else:
+        health_status["checks"]["cloudinary"] = "not_configured"
+    
+    return health_status
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8102)
+    port = int(os.getenv("PORT", 8102))
+    uvicorn.run(app, host="0.0.0.0", port=port)

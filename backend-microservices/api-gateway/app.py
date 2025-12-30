@@ -3,21 +3,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 import httpx
 from typing import Optional
+import os
+from dotenv import load_dotenv
 
 app = FastAPI(title="API Gateway - Sistema de Asistencias")
 
+# Cargar variables de entorno desde la raíz del proyecto
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+load_dotenv(dotenv_path=ENV_PATH)
+
+# Configurar CORS dinámicamente
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_str == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 SERVICES = {
-    "users": "http://localhost:8101",
-    "events": "http://localhost:8102",
-    "reports": "http://localhost:8103"
+    "users": os.getenv("USERS_SERVICE_URL", "http://localhost:8101"),
+    "events": os.getenv("EVENTS_SERVICE_URL", "http://localhost:8102"),
+    "reports": os.getenv("REPORTS_SERVICE_URL", "http://localhost:8103")
 }
 
 async def proxy_request(service_url: str, path: str, request: Request):
@@ -189,4 +202,5 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8100)
+    port = int(os.getenv("PORT", 8100))
+    uvicorn.run(app, host="0.0.0.0", port=port)

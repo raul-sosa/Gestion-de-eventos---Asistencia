@@ -67,3 +67,17 @@ backend-microservices/events-service/uploads/images/*
 # Excel files (opcional - descomentar si no quieres subir el Excel)
 # *.xlsx
 # *.xls
+
+
+
+.env
+.env.local
+.env.
+
+
+.venv/
+.venv311/
+__pycache__/
+*.pyc
+# Backup de scripts de desarrollo
+backup-scripts/

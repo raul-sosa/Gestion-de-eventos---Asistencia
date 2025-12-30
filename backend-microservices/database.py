@@ -1,23 +1,200 @@
 """
 Base de datos compartida para todos los microservicios
-Usa SQLite con estructura SQL estándar
+Usa SQLite con estructura SQL estándar o PostgreSQL según DATABASE_URL
 """
+import logging
 import sqlite3
 import json
 import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
+from contextlib import contextmanager
+import time
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "asistencias.db")
 
+# Cargar variables de entorno desde el archivo .env en la raíz del proyecto
+load_dotenv(dotenv_path="../.env")
+
+# Configurar logging
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Pool de conexiones PostgreSQL (se inicializa bajo demanda)
+_pg_pool = None
+_pool_lock = None
+
+def _init_pg_pool():
+    """Inicializa el pool de conexiones PostgreSQL."""
+    global _pg_pool, _pool_lock
+    if _pg_pool is not None:
+        return
+    
+    import threading
+    from psycopg2 import pool as pg_pool
+    
+    if _pool_lock is None:
+        _pool_lock = threading.Lock()
+    
+    with _pool_lock:
+        if _pg_pool is not None:
+            return
+        
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            return
+        
+        try:
+            # Configurar SSL y timeouts en la URL si no están presentes
+            if "sslmode=" not in db_url:
+                db_url += "&sslmode=require" if "?" in db_url else "?sslmode=require"
+            if "connect_timeout=" not in db_url:
+                db_url += "&connect_timeout=10"
+            
+            # Crear pool de conexiones (mínimo 1, máximo 10)
+            _pg_pool = pg_pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=db_url
+            )
+            logger.info("Pool de conexiones PostgreSQL inicializado correctamente")
+        except Exception as e:
+            logger.error(f"Error al inicializar pool PostgreSQL: {e}")
+            _pg_pool = None
+
+def _get_pg_connection():
+    """Obtiene una conexión del pool PostgreSQL con reintentos."""
+    import psycopg2
+    import psycopg2.extras
+    
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return None
+    
+    # Intentar usar pool si está disponible
+    if _pg_pool is not None:
+        try:
+            conn = _pg_pool.getconn()
+            if conn:
+                conn.cursor_factory = psycopg2.extras.DictCursor
+                return conn
+        except Exception as e:
+            logger.warning(f"Error obteniendo conexión del pool: {e}")
+    
+    # Fallback: conexión directa con reintentos
+    max_retries = 3
+    retry_delay = 1
+    
+    for attempt in range(max_retries):
+        try:
+            # Asegurar SSL y timeout
+            connection_params = db_url
+            if "sslmode=" not in connection_params:
+                connection_params += "&sslmode=require" if "?" in connection_params else "?sslmode=require"
+            if "connect_timeout=" not in connection_params:
+                connection_params += "&connect_timeout=10"
+            
+            # Intentar conexión
+            conn = psycopg2.connect(
+                connection_params,
+                cursor_factory=psycopg2.extras.DictCursor
+            )
+            logger.info(f"Conexión PostgreSQL establecida (intento {attempt + 1})")
+            return conn
+            
+        except psycopg2.OperationalError as e:
+            error_msg = str(e).lower()
+            
+            # Si es timeout o problema de red, intentar puerto alternativo
+            if "timeout" in error_msg or "could not connect" in error_msg:
+                if ":5432" in db_url and attempt == 0:
+                    logger.warning("Puerto 5432 falló, intentando puerto 6543 (connection pooler)...")
+                    db_url = db_url.replace(":5432", ":6543")
+                    continue
+            
+            if attempt < max_retries - 1:
+                logger.warning(f"Intento {attempt + 1} falló: {e}. Reintentando en {retry_delay}s...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logger.error(f"No se pudo conectar a PostgreSQL después de {max_retries} intentos: {e}")
+                raise
+        
+        except Exception as e:
+            logger.error(f"Error inesperado conectando a PostgreSQL: {e}")
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(retry_delay)
+    
+    return None
+
 def get_connection():
-    """Obtiene una conexión a la base de datos"""
-    conn = sqlite3.connect(DB_PATH)
+    """Obtiene una conexión a la base de datos.
+    Si DATABASE_URL apunta a PostgreSQL, usa psycopg2 con DictCursor y pool.
+    En caso contrario, usa SQLite local.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if db_url and db_url.startswith("postgres"):
+        # Inicializar pool si es la primera vez
+        if _pg_pool is None:
+            _init_pg_pool()
+        
+        # Obtener conexión PostgreSQL
+        conn = _get_pg_connection()
+        if conn:
+            return conn
+        
+        logger.warning("No se pudo obtener conexión PostgreSQL, usando SQLite como fallback")
+    
+    # Fallback a SQLite
+    class SQLiteCompatCursor(sqlite3.Cursor):
+        def execute(self, sql, parameters=None):
+            if parameters is None:
+                parameters = ()
+            sql = sql.replace('%s', '?')
+            return super().execute(sql, parameters)
+
+        def executemany(self, sql, seq_of_parameters):
+            sql = sql.replace('%s', '?')
+            return super().executemany(sql, seq_of_parameters)
+
+    class SQLiteCompatConnection(sqlite3.Connection):
+        def cursor(self, factory=None):
+            return super().cursor(factory or SQLiteCompatCursor)
+
+    conn = sqlite3.connect(DB_PATH, factory=SQLiteCompatConnection)
     conn.row_factory = sqlite3.Row  # Para acceder a columnas por nombre
+    logger.debug("Usando SQLite local")
     return conn
+
+@contextmanager
+def get_db_connection():
+    """Context manager para manejar conexiones de forma segura."""
+    conn = get_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error en transacción de BD: {e}")
+        raise
+    finally:
+        # Si es del pool, devolver al pool; si no, cerrar
+        if _pg_pool is not None and os.getenv("DATABASE_URL", "").startswith("postgres"):
+            try:
+                _pg_pool.putconn(conn)
+            except:
+                conn.close()
+        else:
+            conn.close()
 
 def init_database():
     """Inicializa la base de datos con todas las tablas"""
+    logger.info("Inicializando base de datos...")
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -46,7 +223,7 @@ def init_database():
             capacidad_maxima INTEGER,
             estado TEXT NOT NULL CHECK(estado IN ('activo', 'finalizado', 'cancelado')) DEFAULT 'activo',
             organizador_id TEXT NOT NULL,
-            imagen_path TEXT,
+            imagen_url TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (organizador_id) REFERENCES users(id)
@@ -101,7 +278,7 @@ def init_database():
     
     conn.commit()
     conn.close()
-    print(f"✓ Base de datos inicializada en: {DB_PATH}")
+    logger.info(f"✓ Base de datos inicializada en: {DB_PATH}")
 
 def migrate_from_json():
     """Migra datos existentes de JSON a SQL"""

@@ -20,18 +20,25 @@ import Reports from "./pages/Reports";
 import "./App.css";
 import "./styles/mobile.css";
 
-// Configurar baseURL de axios para usar el proxy de Vite
-axios.defaults.baseURL = "/api";
-axios.defaults.timeout = 30000; // 30 segundos timeout
+// Configurar baseURL de axios dinámicamente
+// En desarrollo: usa proxy de Vite (/api)
+// En producción: usa variable de entorno VITE_API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+axios.defaults.baseURL = API_BASE_URL;
+axios.defaults.timeout = 15000; // 15 segundos timeout
+
+console.log(`[App] API Base URL: ${API_BASE_URL}`);
 
 // Configurar React Query con caché optimizado
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30000, // Los datos son frescos por 30 segundos
-      cacheTime: 300000, // Mantener en caché por 5 minutos
+      staleTime: 60000, // Los datos son frescos por 1 minuto
+      cacheTime: 600000, // Mantener en caché por 10 minutos
       refetchOnWindowFocus: false, // No recargar al cambiar de ventana
+      refetchOnMount: false, // No recargar al montar si hay caché
       retry: 1, // Solo reintentar una vez en caso de error
+      retryDelay: 1000, // Esperar 1 segundo entre reintentos
     },
   },
 });

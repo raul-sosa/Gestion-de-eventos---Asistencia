@@ -1,0 +1,117 @@
+# ============================================
+# Configuración de Render para despliegue automático
+# ============================================
+# Este archivo permite desplegar todos los microservicios con un solo clic
+
+services:
+  # API Gateway
+  - type: web
+    name: asistencias-api-gateway
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend-microservices/api-gateway && pip install -r requirements.txt"
+    startCommand: "cd backend-microservices/api-gateway && python app.py"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: USERS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-users-service
+          property: host
+      - key: EVENTS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-events-service
+          property: host
+      - key: REPORTS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-reports-service
+          property: host
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health
+
+  # Users Service
+  - type: web
+    name: asistencias-users-service
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend-microservices/users-service && pip install -r requirements.txt"
+    startCommand: "cd backend-microservices/users-service && python app.py"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health
+
+  # Events Service
+  - type: web
+    name: asistencias-events-service
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend-microservices/events-service && pip install -r requirements.txt"
+    startCommand: "cd backend-microservices/events-service && python app.py"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: USERS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-users-service
+          property: host
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health
+
+  # Reports Service
+  - type: web
+    name: asistencias-reports-service
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend-microservices/reports-service && pip install -r requirements.txt"
+    startCommand: "cd backend-microservices/reports-service && python app.py"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: USERS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-users-service
+          property: host
+      - key: EVENTS_SERVICE_URL
+        fromService:
+          type: web
+          name: asistencias-events-service
+          property: host
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /health

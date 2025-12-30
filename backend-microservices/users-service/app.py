@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 import sys
 import os
+from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_connection, row_to_dict, rows_to_list, init_database
 import uuid
@@ -14,9 +15,20 @@ import bcrypt
 
 app = FastAPI(title="Users Service - Sistema de Asistencias")
 
+# Cargar variables de entorno desde la raíz del proyecto
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+load_dotenv(dotenv_path=ENV_PATH)
+
+# Configurar CORS dinámicamente
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_str == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,12 +36,13 @@ app.add_middleware(
 
 security = HTTPBearer()
 
-SECRET_KEY = "your-secret-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
-# Inicializar base de datos al arrancar
-init_database()
+# Inicializar base de datos solo en SQLite (en Postgres se asume gestionado en migración)
+if not os.getenv("DATABASE_URL", "").startswith("postgres"):
+    init_database()
 
 class UserCreate(BaseModel):
     username: str
@@ -80,18 +93,19 @@ def ensure_default_users():
     ]
     
     for username, email, password, full_name, role in default_users:
-        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
         if not cursor.fetchone():
             cursor.execute(
-                "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                 (str(uuid.uuid4()), username, email, hash_password(password), full_name, role, datetime.now().isoformat())
             )
     
     conn.commit()
     conn.close()
 
-# Asegurar usuarios por defecto
-ensure_default_users()
+# Asegurar usuarios por defecto (solo cuando se usa SQLite)
+if not os.getenv("DATABASE_URL", "").startswith("postgres"):
+    ensure_default_users()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -130,7 +144,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
     user = cursor.fetchone()
     conn.close()
     
@@ -148,7 +162,7 @@ def register_user(user: UserCreate):
     cursor = conn.cursor()
     
     # Verificar username
-    cursor.execute("SELECT id FROM users WHERE username = ?", (user.username,))
+    cursor.execute("SELECT id FROM users WHERE username = %s", (user.username,))
     if cursor.fetchone():
         conn.close()
         raise HTTPException(
@@ -157,7 +171,7 @@ def register_user(user: UserCreate):
         )
     
     # Verificar email
-    cursor.execute("SELECT id FROM users WHERE email = ?", (user.email,))
+    cursor.execute("SELECT id FROM users WHERE email = %s", (user.email,))
     if cursor.fetchone():
         conn.close()
         raise HTTPException(
@@ -170,12 +184,12 @@ def register_user(user: UserCreate):
     created_at = datetime.now().isoformat()
     
     cursor.execute(
-        "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, username, email, password, full_name, role, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         (user_id, user.username, user.email, hashed_password, user.full_name, user.role, created_at)
     )
     conn.commit()
     
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
     new_user = row_to_dict(cursor.fetchone())
     conn.close()
     
@@ -186,7 +200,7 @@ def register_user(user: UserCreate):
 def login(user_login: UserLogin):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ?", (user_login.username,))
+    cursor.execute("SELECT * FROM users WHERE username = %s", (user_login.username,))
     user_row = cursor.fetchone()
     conn.close()
     
@@ -204,18 +218,21 @@ def login(user_login: UserLogin):
             detail="Credenciales incorrectas"
         )
     
+    # Convertir created_at a string si es datetime
+    if isinstance(user.get("created_at"), datetime):
+        user["created_at"] = user["created_at"].isoformat()
+    
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["id"], "username": user["username"], "role": user["role"]},
         expires_delta=access_token_expires
     )
     
-    user_response = {k: v for k, v in user.items() if k != "password"}
-    
+    del user['password']
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user_response
+        "user": user
     }
 
 @app.get("/api/users/me", response_model=UserResponse)
@@ -229,25 +246,25 @@ def update_current_user(user_update: UserUpdate, current_user: dict = Depends(ge
     cursor = conn.cursor()
     
     if user_update.email:
-        cursor.execute("SELECT id FROM users WHERE email = ? AND id != ?", (user_update.email, current_user["id"]))
+        cursor.execute("SELECT id FROM users WHERE email = %s AND id != %s", (user_update.email, current_user["id"]))
         if cursor.fetchone():
             conn.close()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El correo electrónico ya está en uso"
             )
-        cursor.execute("UPDATE users SET email = ? WHERE id = ?", (user_update.email, current_user["id"]))
+        cursor.execute("UPDATE users SET email = %s WHERE id = %s", (user_update.email, current_user["id"]))
     
     if user_update.full_name:
-        cursor.execute("UPDATE users SET full_name = ? WHERE id = ?", (user_update.full_name, current_user["id"]))
+        cursor.execute("UPDATE users SET full_name = %s WHERE id = %s", (user_update.full_name, current_user["id"]))
     
     if user_update.password:
         hashed = hash_password(user_update.password)
-        cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed, current_user["id"]))
+        cursor.execute("UPDATE users SET password = %s WHERE id = %s", (hashed, current_user["id"]))
     
     conn.commit()
     
-    cursor.execute("SELECT * FROM users WHERE id = ?", (current_user["id"],))
+    cursor.execute("SELECT * FROM users WHERE id = %s", (current_user["id"],))
     updated_user = row_to_dict(cursor.fetchone())
     conn.close()
     
@@ -269,6 +286,34 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 def root():
     return {"service": "Users Service", "version": "1.0", "status": "running"}
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint para monitoreo"""
+    try:
+        # Verificar conexión a base de datos
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        conn.close()
+        
+        db_type = "PostgreSQL" if os.getenv("DATABASE_URL", "").startswith("postgres") else "SQLite"
+        
+        return {
+            "status": "healthy",
+            "service": "Users Service",
+            "database": db_type,
+            "database_connected": True
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "Users Service",
+            "database_connected": False,
+            "error": str(e)
+        }
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8101)
+    port = int(os.getenv("PORT", 8101))
+    uvicorn.run(app, host="0.0.0.0", port=port)

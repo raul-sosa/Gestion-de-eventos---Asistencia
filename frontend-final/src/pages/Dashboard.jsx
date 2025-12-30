@@ -17,24 +17,26 @@ import {
 import "./Dashboard.css";
 
 function Dashboard() {
-  // Query para estadísticas globales con caché
+  // Query para estadísticas globales con caché agresivo
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["globalStats"],
     queryFn: async () => {
       const response = await axios.get("/reports/statistics/global");
       return response.data;
     },
-    staleTime: 30000,
+    staleTime: 120000, // 2 minutos
+    cacheTime: 600000, // 10 minutos
   });
 
-  // Query para eventos recientes con caché
+  // Query para eventos recientes con caché agresivo
   const { data: events, isLoading: eventsLoading } = useQuery({
     queryKey: ["recentEvents"],
     queryFn: async () => {
       const response = await axios.get("/events");
       return response.data.slice(0, 5);
     },
-    staleTime: 30000,
+    staleTime: 120000, // 2 minutos
+    cacheTime: 600000, // 10 minutos
   });
 
   const loading = statsLoading || eventsLoading;
