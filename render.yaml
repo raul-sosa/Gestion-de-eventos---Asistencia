@@ -20,20 +20,11 @@ services:
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: USERS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-users-service
-          property: host
+        sync: false
       - key: EVENTS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-events-service
-          property: host
+        sync: false
       - key: REPORTS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-reports-service
-          property: host
+        sync: false
       - key: LOG_LEVEL
         value: INFO
     healthCheckPath: /health
@@ -79,10 +70,7 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
       - key: USERS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-users-service
-          property: host
+        sync: false
       - key: LOG_LEVEL
         value: INFO
     healthCheckPath: /health
@@ -103,15 +91,9 @@ services:
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: USERS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-users-service
-          property: host
+        sync: false
       - key: EVENTS_SERVICE_URL
-        fromService:
-          type: web
-          name: asistencias-events-service
-          property: host
+        sync: false
       - key: LOG_LEVEL
         value: INFO
     healthCheckPath: /health
