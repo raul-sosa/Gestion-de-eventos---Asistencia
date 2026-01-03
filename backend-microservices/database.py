@@ -35,7 +35,7 @@ def _init_pg_pool():
         return
     
     import threading
-    from psycopg2 import pool as pg_pool
+    from psycopg_pool import ConnectionPool
     
     if _pool_lock is None:
         _pool_lock = threading.Lock()
@@ -55,11 +55,11 @@ def _init_pg_pool():
             if "connect_timeout=" not in db_url:
                 db_url += "&connect_timeout=10"
             
-            # Crear pool de conexiones (mínimo 1, máximo 10)
-            _pg_pool = pg_pool.SimpleConnectionPool(
-                minconn=1,
-                maxconn=10,
-                dsn=db_url
+            # Crear pool de conexiones con psycopg3
+            _pg_pool = ConnectionPool(
+                conninfo=db_url,
+                min_size=1,
+                max_size=10
             )
             logger.info("Pool de conexiones PostgreSQL inicializado correctamente")
         except Exception as e:
@@ -68,8 +68,8 @@ def _init_pg_pool():
 
 def _get_pg_connection():
     """Obtiene una conexión del pool PostgreSQL con reintentos."""
-    import psycopg2
-    import psycopg2.extras
+    import psycopg
+    from psycopg.rows import dict_row
     
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
@@ -80,7 +80,6 @@ def _get_pg_connection():
         try:
             conn = _pg_pool.getconn()
             if conn:
-                conn.cursor_factory = psycopg2.extras.DictCursor
                 return conn
         except Exception as e:
             logger.warning(f"Error obteniendo conexión del pool: {e}")
@@ -98,15 +97,15 @@ def _get_pg_connection():
             if "connect_timeout=" not in connection_params:
                 connection_params += "&connect_timeout=10"
             
-            # Intentar conexión
-            conn = psycopg2.connect(
+            # Intentar conexión con psycopg3
+            conn = psycopg.connect(
                 connection_params,
-                cursor_factory=psycopg2.extras.DictCursor
+                row_factory=dict_row
             )
             logger.info(f"Conexión PostgreSQL establecida (intento {attempt + 1})")
             return conn
             
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             error_msg = str(e).lower()
             
             # Si es timeout o problema de red, intentar puerto alternativo
