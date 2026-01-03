@@ -10,7 +10,6 @@ services:
     env: python
     region: oregon
     plan: free
-    runtime: python-3.12.0
     buildCommand: "cd backend-microservices/api-gateway && pip install -r requirements.txt"
     startCommand: "cd backend-microservices/api-gateway && python app.py"
     envVars:
@@ -36,7 +35,6 @@ services:
     env: python
     region: oregon
     plan: free
-    runtime: python-3.12.0
     buildCommand: "cd backend-microservices/users-service && pip install -r requirements.txt"
     startCommand: "cd backend-microservices/users-service && python app.py"
     envVars:
@@ -56,7 +54,6 @@ services:
     env: python
     region: oregon
     plan: free
-    runtime: python-3.12.0
     buildCommand: "cd backend-microservices/events-service && pip install -r requirements.txt"
     startCommand: "cd backend-microservices/events-service && python app.py"
     envVars:
@@ -84,7 +81,6 @@ services:
     env: python
     region: oregon
     plan: free
-    runtime: python-3.12.0
     buildCommand: "cd backend-microservices/reports-service && pip install -r requirements.txt"
     startCommand: "cd backend-microservices/reports-service && python app.py"
     envVars:
