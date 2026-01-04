@@ -70,7 +70,7 @@ class ReportFilters(BaseModel):
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 f"{USERS_SERVICE_URL}/api/users/verify-token",
                 headers={"Authorization": f"Bearer {credentials.credentials}"}
@@ -82,15 +82,25 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Token inválido"
                 )
-    except httpx.RequestError:
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Timeout al verificar token"
+        )
+    except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Servicio de usuarios no disponible"
+            detail=f"Servicio de usuarios no disponible: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error inesperado: {str(e)}"
         )
 
 async def get_events_data(token: str):
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 f"{EVENTS_SERVICE_URL}/api/events",
                 headers={"Authorization": f"Bearer {token}"}
@@ -98,12 +108,13 @@ async def get_events_data(token: str):
             if response.status_code == 200:
                 return response.json()
             return []
-    except httpx.RequestError:
+    except (httpx.TimeoutException, httpx.RequestError, Exception) as e:
+        print(f"Error obteniendo eventos: {str(e)}")
         return []
 
 async def get_event_attendances(event_id: str, token: str):
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 f"{EVENTS_SERVICE_URL}/api/events/{event_id}/attendances",
                 headers={"Authorization": f"Bearer {token}"}
@@ -111,7 +122,8 @@ async def get_event_attendances(event_id: str, token: str):
             if response.status_code == 200:
                 return response.json()
             return []
-    except httpx.RequestError:
+    except (httpx.TimeoutException, httpx.RequestError, Exception) as e:
+        print(f"Error obteniendo asistencias del evento {event_id}: {str(e)}")
         return []
 
 @app.post("/api/reports/attendances", response_model=List[AttendanceReport])
