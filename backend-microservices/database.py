@@ -55,6 +55,22 @@ def _init_pg_pool():
             if "connect_timeout=" not in db_url:
                 db_url += "&connect_timeout=10"
             
+            # Forzar IPv4 para evitar problemas con IPv6 en Render
+            if "hostaddr=" not in db_url:
+                # Extraer el hostname y resolverlo a IPv4
+                import re
+                host_match = re.search(r'@([^:/]+)', db_url)
+                if host_match:
+                    hostname = host_match.group(1)
+                    try:
+                        import socket
+                        # Forzar resolución IPv4
+                        ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
+                        db_url += f"&hostaddr={ipv4_addr}"
+                        logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
+                    except Exception as e:
+                        logger.warning(f"No se pudo resolver IPv4 para {hostname}: {e}")
+            
             # Crear pool de conexiones con psycopg3
             _pg_pool = ConnectionPool(
                 conninfo=db_url,
@@ -96,6 +112,20 @@ def _get_pg_connection():
                 connection_params += "&sslmode=require" if "?" in connection_params else "?sslmode=require"
             if "connect_timeout=" not in connection_params:
                 connection_params += "&connect_timeout=10"
+            
+            # Forzar IPv4 para evitar problemas con IPv6 en Render
+            if "hostaddr=" not in connection_params:
+                import re
+                import socket
+                host_match = re.search(r'@([^:/]+)', connection_params)
+                if host_match:
+                    hostname = host_match.group(1)
+                    try:
+                        ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
+                        connection_params += f"&hostaddr={ipv4_addr}"
+                        logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
+                    except Exception as e:
+                        logger.warning(f"No se pudo resolver IPv4 para {hostname}: {e}")
             
             # Intentar conexión con psycopg3
             conn = psycopg.connect(
