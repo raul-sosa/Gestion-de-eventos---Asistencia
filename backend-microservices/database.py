@@ -59,15 +59,18 @@ def _init_pg_pool():
             if "hostaddr=" not in db_url:
                 # Extraer el hostname y resolverlo a IPv4
                 import re
-                host_match = re.search(r'@([^:/]+)', db_url)
+                import socket
+                # Extraer hostname: buscar entre @ y : (puerto)
+                host_match = re.search(r'@([^:/?]+)', db_url)
                 if host_match:
                     hostname = host_match.group(1)
                     try:
-                        import socket
-                        # Forzar resolución IPv4
-                        ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
-                        db_url += f"&hostaddr={ipv4_addr}"
-                        logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
+                        # Forzar resolución IPv4 solamente
+                        ipv4_results = socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
+                        if ipv4_results:
+                            ipv4_addr = ipv4_results[0][4][0]
+                            db_url += f"&hostaddr={ipv4_addr}"
+                            logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
                     except Exception as e:
                         logger.warning(f"No se pudo resolver IPv4 para {hostname}: {e}")
             
@@ -117,13 +120,17 @@ def _get_pg_connection():
             if "hostaddr=" not in connection_params:
                 import re
                 import socket
-                host_match = re.search(r'@([^:/]+)', connection_params)
+                # Extraer hostname: buscar entre @ y : (puerto)
+                host_match = re.search(r'@([^:/?]+)', connection_params)
                 if host_match:
                     hostname = host_match.group(1)
                     try:
-                        ipv4_addr = socket.getaddrinfo(hostname, None, socket.AF_INET)[0][4][0]
-                        connection_params += f"&hostaddr={ipv4_addr}"
-                        logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
+                        # Forzar resolución IPv4 solamente
+                        ipv4_results = socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
+                        if ipv4_results:
+                            ipv4_addr = ipv4_results[0][4][0]
+                            connection_params += f"&hostaddr={ipv4_addr}"
+                            logger.info(f"Forzando IPv4: {hostname} -> {ipv4_addr}")
                     except Exception as e:
                         logger.warning(f"No se pudo resolver IPv4 para {hostname}: {e}")
             
