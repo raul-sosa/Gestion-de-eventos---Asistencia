@@ -425,8 +425,9 @@ async def export_event_pdf(
             student_row = cursor.fetchone()
             
             if student_row:
-                nombre = student_row[0] if student_row[0] else "N/A"
-                carrera = student_row[1] if student_row[1] else "N/A"
+                # student_row es un dict con dict_row de psycopg3
+                nombre = student_row.get('nombre') or student_row.get(0) or "N/A"
+                carrera = student_row.get('carrera') or student_row.get(1) or "N/A"
             else:
                 nombre = "No registrado"
                 carrera = "N/A"
