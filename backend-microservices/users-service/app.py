@@ -210,8 +210,18 @@ def login(user_login: UserLogin):
             detail="Credenciales incorrectas"
         )
     
-    # Con row_factory=dict_row, user_row ya es un dict
-    user = user_row if isinstance(user_row, dict) else row_to_dict(user_row)
+    # Convertir row a dict manualmente para evitar problemas con row_to_dict
+    if isinstance(user_row, dict):
+        user = dict(user_row)
+    else:
+        # Fallback: construir dict manualmente desde row
+        user = {}
+        if hasattr(user_row, 'keys'):
+            for key in user_row.keys():
+                user[key] = user_row[key]
+        else:
+            # Si todo falla, intentar con row_to_dict
+            user = row_to_dict(user_row)
     
     if not verify_password(user_login.password, user["password"]):
         raise HTTPException(
