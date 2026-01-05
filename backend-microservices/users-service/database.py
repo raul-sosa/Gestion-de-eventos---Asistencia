@@ -414,16 +414,24 @@ def migrate_from_json():
     print("✓ Migración completada")
 
 def row_to_dict(row) -> Dict[str, Any]:
-    """Convierte una fila de PostgreSQL a diccionario - Fixed for psycopg3"""
+    """Convierte una fila de PostgreSQL a diccionario - psycopg3 compatible"""
     if row is None:
         return None
-    # Para psycopg3, usar _asdict() o iterar sobre las columnas
+    # Con row_factory=dict_row, row ya es un dict
+    if isinstance(row, dict):
+        return row
+    # Fallback para otros tipos
     if hasattr(row, '_asdict'):
         return row._asdict()
     elif hasattr(row, 'keys') and hasattr(row, 'values'):
         return dict(zip(row.keys(), row.values()))
     else:
-        return dict(row)
+        # Último recurso: intentar convertir directamente
+        try:
+            return dict(row)
+        except (ValueError, TypeError):
+            # Si falla, convertir a dict manualmente
+            return {key: row[key] for key in row.keys()}
 
 def rows_to_list(rows) -> List[Dict[str, Any]]:
     """Convierte múltiples filas de PostgreSQL a lista de diccionarios"""
