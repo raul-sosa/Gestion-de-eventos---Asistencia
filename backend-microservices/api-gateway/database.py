@@ -78,7 +78,8 @@ def _init_pg_pool():
             _pg_pool = ConnectionPool(
                 conninfo=db_url,
                 min_size=1,
-                max_size=10
+                max_size=5,
+                timeout=10  # Timeout más corto para obtener conexión del pool
             )
             logger.info("Pool de conexiones PostgreSQL inicializado correctamente")
         except Exception as e:
@@ -97,8 +98,10 @@ def _get_pg_connection():
     # Intentar usar pool si está disponible
     if _pg_pool is not None:
         try:
-            conn = _pg_pool.getconn()
+            conn = _pg_pool.getconn(timeout=5)  # Timeout de 5s para obtener conexión
             if conn:
+                # Configurar row_factory para esta conexión
+                conn.row_factory = dict_row
                 return conn
         except Exception as e:
             logger.warning(f"Error obteniendo conexión del pool: {e}")
