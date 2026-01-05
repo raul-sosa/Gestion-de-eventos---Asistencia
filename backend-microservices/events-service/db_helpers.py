@@ -8,6 +8,16 @@ from database import get_connection, row_to_dict, rows_to_list
 from datetime import datetime
 import uuid
 
+# ==================== HELPERS ====================
+
+def convert_datetime_fields(event_dict):
+    """Convierte campos datetime a string ISO para compatibilidad con Pydantic"""
+    if event_dict:
+        for field in ['fecha_hora_inicio', 'fecha_hora_fin', 'created_at', 'updated_at']:
+            if field in event_dict and isinstance(event_dict[field], datetime):
+                event_dict[field] = event_dict[field].isoformat()
+    return event_dict
+
 # ==================== EVENTOS ====================
 
 def get_all_events(estado=None):
@@ -19,7 +29,8 @@ def get_all_events(estado=None):
         cursor.execute("SELECT * FROM events ORDER BY created_at DESC")
     events = rows_to_list(cursor.fetchall())
     conn.close()
-    return events
+    # Convertir datetime a string en todos los eventos
+    return [convert_datetime_fields(event) for event in events]
 
 def get_event_by_id(event_id):
     conn = get_connection()
@@ -27,7 +38,8 @@ def get_event_by_id(event_id):
     cursor.execute("SELECT * FROM events WHERE id = %s", (event_id,))
     event = cursor.fetchone()
     conn.close()
-    return row_to_dict(event) if event else None
+    event_dict = row_to_dict(event) if event else None
+    return convert_datetime_fields(event_dict) if event_dict else None
 
 def create_event_db(event_data, organizador_id):
     conn = get_connection()
@@ -52,7 +64,8 @@ def create_event_db(event_data, organizador_id):
     cursor.execute("SELECT * FROM events WHERE id = %s", (event_id,))
     new_event = row_to_dict(cursor.fetchone())
     conn.close()
-    return new_event
+    
+    return convert_datetime_fields(new_event)
 
 def update_event(event_id, event_data):
     conn = get_connection()
@@ -97,7 +110,7 @@ def update_event(event_id, event_data):
     cursor.execute("SELECT * FROM events WHERE id = %s", (event_id,))
     updated_event = row_to_dict(cursor.fetchone())
     conn.close()
-    return updated_event
+    return convert_datetime_fields(updated_event)
 
 def delete_event(event_id):
     conn = get_connection()
