@@ -335,8 +335,9 @@ async def get_global_statistics(
     # Obtener pre-registros de la base de datos
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM pre_registros")
-    total_pre_registros = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) as count FROM pre_registros")
+    result = cursor.fetchone()
+    total_pre_registros = result['count'] if result else 0
     
     for event in events:
         attendances = await get_event_attendances(event["id"], token)
