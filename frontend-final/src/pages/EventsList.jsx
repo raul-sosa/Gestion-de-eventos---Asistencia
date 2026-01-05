@@ -24,6 +24,10 @@ function EventsList() {
     queryFn: async () => {
       const params = filter !== "all" ? { estado: filter } : {};
       const response = await axios.get("/events", { params });
+      console.log("📸 Eventos recibidos:", response.data);
+      response.data.forEach((event) => {
+        console.log(`Evento ${event.nombre}: imagen_url =`, event.imagen_url);
+      });
       return response.data;
     },
     staleTime: 20000, // Datos frescos por 20 segundos

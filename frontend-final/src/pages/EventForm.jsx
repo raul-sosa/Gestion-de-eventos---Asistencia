@@ -77,7 +77,8 @@ function EventForm() {
         },
       });
 
-      return response.data.image_path;
+      console.log("📸 Upload response:", response.data);
+      return response.data.imagen_url;
     } catch (error) {
       console.error("Error al subir imagen:", error);
       return null;
