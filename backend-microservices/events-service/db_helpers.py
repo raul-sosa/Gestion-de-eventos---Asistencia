@@ -13,7 +13,7 @@ import uuid
 def convert_datetime_fields(event_dict):
     """Convierte campos datetime a string ISO para compatibilidad con Pydantic"""
     if event_dict:
-        for field in ['fecha_hora_inicio', 'fecha_hora_fin', 'created_at', 'updated_at']:
+        for field in ['fecha_hora_inicio', 'fecha_hora_fin', 'created_at', 'updated_at', 'hora_registro']:
             if field in event_dict and isinstance(event_dict[field], datetime):
                 event_dict[field] = event_dict[field].isoformat()
     return event_dict
@@ -144,6 +144,8 @@ def get_event_attendances(event_id):
     for att in attendances:
         att['validado'] = bool(att['validado'])
         att['estudiante'] = students_dict.get(att['id_credencial'], None)
+        # Convertir datetime a string
+        convert_datetime_fields(att)
     
     conn.close()
     return attendances
@@ -172,7 +174,7 @@ def create_attendance(id_credencial, id_evento):
     new_attendance = row_to_dict(cursor.fetchone())
     conn.close()
     new_attendance['validado'] = bool(new_attendance['validado'])
-    return new_attendance
+    return convert_datetime_fields(new_attendance)
 
 def validate_attendance(attendance_id, validado):
     conn = get_connection()
@@ -186,6 +188,7 @@ def validate_attendance(attendance_id, validado):
     conn.close()
     if attendance:
         attendance['validado'] = bool(attendance['validado'])
+        convert_datetime_fields(attendance)
     return attendance
 
 # ==================== PRE-REGISTROS ====================
