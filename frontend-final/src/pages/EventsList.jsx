@@ -30,7 +30,7 @@ function EventsList() {
       });
       return response.data;
     },
-    staleTime: 20000, // Datos frescos por 20 segundos
+    staleTime: 0, // Sin caché para debug
   });
 
   // Mutation para eliminar con invalidación automática de caché
