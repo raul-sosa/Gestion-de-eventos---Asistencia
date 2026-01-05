@@ -210,7 +210,8 @@ def login(user_login: UserLogin):
             detail="Credenciales incorrectas"
         )
     
-    user = row_to_dict(user_row)
+    # Con row_factory=dict_row, user_row ya es un dict
+    user = user_row if isinstance(user_row, dict) else row_to_dict(user_row)
     
     if not verify_password(user_login.password, user["password"]):
         raise HTTPException(
