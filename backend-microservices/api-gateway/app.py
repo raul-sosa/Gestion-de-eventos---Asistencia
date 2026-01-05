@@ -115,47 +115,47 @@ async def proxy_request(service_url: str, path: str, request: Request):
 
 @app.api_route("/api/users/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def users_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["users"], f"/users/{path}", request)
+    return await proxy_request(SERVICES["users"], f"/api/users/{path}", request)
 
 @app.api_route("/api/events/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def events_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["events"], f"/events/{path}", request)
+    return await proxy_request(SERVICES["events"], f"/api/events/{path}", request)
 
 @app.api_route("/api/events", methods=["GET", "POST", "OPTIONS"])
 async def events_root_proxy(request: Request):
-    return await proxy_request(SERVICES["events"], "/events", request)
+    return await proxy_request(SERVICES["events"], "/api/events", request)
 
 @app.api_route("/api/attendances/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def attendances_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["events"], f"/attendances/{path}", request)
+    return await proxy_request(SERVICES["events"], f"/api/attendances/{path}", request)
 
 @app.api_route("/api/attendances", methods=["GET", "POST", "OPTIONS"])
 async def attendances_root_proxy(request: Request):
-    return await proxy_request(SERVICES["events"], "/attendances", request)
+    return await proxy_request(SERVICES["events"], "/api/attendances", request)
 
 @app.api_route("/api/reports/export/event/{event_id}/pdf", methods=["GET", "OPTIONS"])
 async def reports_pdf_proxy(event_id: str, request: Request):
-    return await proxy_request(SERVICES["reports"], f"/reports/export/event/{event_id}/pdf", request)
+    return await proxy_request(SERVICES["reports"], f"/api/reports/export/event/{event_id}/pdf", request)
 
 @app.api_route("/api/reports/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def reports_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["reports"], f"/reports/{path}", request)
+    return await proxy_request(SERVICES["reports"], f"/api/reports/{path}", request)
 
 @app.api_route("/api/pre-registros/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def pre_registros_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["events"], f"/pre-registros/{path}", request)
+    return await proxy_request(SERVICES["events"], f"/api/pre-registros/{path}", request)
 
 @app.api_route("/api/pre-registros", methods=["GET", "POST", "OPTIONS"])
 async def pre_registros_root_proxy(request: Request):
-    return await proxy_request(SERVICES["events"], "/pre-registros", request)
+    return await proxy_request(SERVICES["events"], "/api/pre-registros", request)
 
 @app.api_route("/api/students/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def students_proxy(path: str, request: Request):
-    return await proxy_request(SERVICES["events"], f"/students/{path}", request)
+    return await proxy_request(SERVICES["events"], f"/api/students/{path}", request)
 
 @app.api_route("/api/students", methods=["GET", "POST", "OPTIONS"])
 async def students_root_proxy(request: Request):
-    return await proxy_request(SERVICES["events"], "/students", request)
+    return await proxy_request(SERVICES["events"], "/api/students", request)
 
 @app.api_route("/api/uploads/{path:path}", methods=["GET"])
 async def api_uploads_proxy(path: str, request: Request):
