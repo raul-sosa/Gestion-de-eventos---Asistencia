@@ -337,6 +337,7 @@ async def get_global_statistics(
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) as count FROM pre_registros")
     result = cursor.fetchone()
+    # Usar dict key en lugar de índice para compatibilidad con dict_row
     total_pre_registros = result['count'] if result else 0
     
     for event in events:
