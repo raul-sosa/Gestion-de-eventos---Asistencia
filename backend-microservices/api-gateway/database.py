@@ -95,16 +95,16 @@ def _get_pg_connection():
     if not db_url:
         return None
     
-    # Intentar usar pool si está disponible
-    if _pg_pool is not None:
-        try:
-            conn = _pg_pool.getconn(timeout=5)  # Timeout de 5s para obtener conexión
-            if conn:
-                # Configurar row_factory para esta conexión
-                conn.row_factory = dict_row
-                return conn
-        except Exception as e:
-            logger.warning(f"Error obteniendo conexión del pool: {e}")
+    # DESHABILITAR POOL - usar conexiones directas para evitar timeouts
+    # if _pg_pool is not None:
+    #     try:
+    #         conn = _pg_pool.getconn(timeout=5)  # Timeout de 5s para obtener conexión
+    #         if conn:
+    #             # Configurar row_factory para esta conexión
+    #             conn.row_factory = dict_row
+    #             return conn
+    #     except Exception as e:
+    #         logger.warning(f"Error obteniendo conexión del pool: {e}")
     
     # Fallback: conexión directa con reintentos
     max_retries = 3
