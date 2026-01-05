@@ -414,7 +414,7 @@ def migrate_from_json():
     print("✓ Migración completada")
 
 def row_to_dict(row) -> Dict[str, Any]:
-    """Convierte una fila de PostgreSQL a diccionario"""
+    """Convierte una fila de PostgreSQL a diccionario - Fixed for psycopg3"""
     if row is None:
         return None
     # Para psycopg3, usar _asdict() o iterar sobre las columnas
