@@ -414,14 +414,20 @@ def migrate_from_json():
     print("✓ Migración completada")
 
 def row_to_dict(row) -> Dict[str, Any]:
-    """Convierte una fila de SQLite a diccionario"""
+    """Convierte una fila de PostgreSQL a diccionario"""
     if row is None:
         return None
-    return dict(row)
+    # Para psycopg3, usar _asdict() o iterar sobre las columnas
+    if hasattr(row, '_asdict'):
+        return row._asdict()
+    elif hasattr(row, 'keys') and hasattr(row, 'values'):
+        return dict(zip(row.keys(), row.values()))
+    else:
+        return dict(row)
 
 def rows_to_list(rows) -> List[Dict[str, Any]]:
-    """Convierte múltiples filas de SQLite a lista de diccionarios"""
-    return [dict(row) for row in rows]
+    """Convierte múltiples filas de PostgreSQL a lista de diccionarios"""
+    return [row_to_dict(row) for row in rows]
 
 if __name__ == "__main__":
     print("Inicializando base de datos...")
