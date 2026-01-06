@@ -55,10 +55,23 @@ function StudentDashboard() {
       return;
     }
 
+    // Pedir matrícula al estudiante
+    const matricula = prompt("Ingresa tu matrícula (5 dígitos):");
+    if (!matricula) {
+      return;
+    }
+
+    // Validar formato de matrícula
+    if (!/^\d{5}$/.test(matricula)) {
+      alert("La matrícula debe tener exactamente 5 dígitos");
+      return;
+    }
+
     try {
       await axios.post("/pre-registros", {
         id_evento: eventId,
         id_estudiante: studentId,
+        matricula: matricula,
       });
       alert("Pre-registro exitoso");
       loadData();
