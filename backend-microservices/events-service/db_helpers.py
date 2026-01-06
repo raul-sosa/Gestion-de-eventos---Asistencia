@@ -199,6 +199,10 @@ def get_event_pre_registros(event_id):
     cursor.execute("SELECT * FROM pre_registros WHERE id_evento = %s ORDER BY fecha_registro DESC", (event_id,))
     pre_registros = rows_to_list(cursor.fetchall())
     conn.close()
+    # Convertir datetime a string en todos los pre-registros
+    for pr in pre_registros:
+        if 'fecha_registro' in pr and isinstance(pr['fecha_registro'], datetime):
+            pr['fecha_registro'] = pr['fecha_registro'].isoformat()
     return pre_registros
 
 def create_pre_registro(id_evento, id_estudiante, matricula):
@@ -224,6 +228,10 @@ def create_pre_registro(id_evento, id_estudiante, matricula):
     cursor.execute("SELECT * FROM pre_registros WHERE id = %s", (pre_registro_id,))
     new_pre_registro = row_to_dict(cursor.fetchone())
     conn.close()
+    # Convertir datetime a string para compatibilidad con Pydantic
+    if new_pre_registro and 'fecha_registro' in new_pre_registro:
+        if isinstance(new_pre_registro['fecha_registro'], datetime):
+            new_pre_registro['fecha_registro'] = new_pre_registro['fecha_registro'].isoformat()
     return new_pre_registro
 
 def get_student_pre_registros_db(student_id):
@@ -232,6 +240,10 @@ def get_student_pre_registros_db(student_id):
     cursor.execute("SELECT * FROM pre_registros WHERE id_estudiante = %s ORDER BY fecha_registro DESC", (student_id,))
     pre_registros = rows_to_list(cursor.fetchall())
     conn.close()
+    # Convertir datetime a string en todos los pre-registros
+    for pr in pre_registros:
+        if 'fecha_registro' in pr and isinstance(pr['fecha_registro'], datetime):
+            pr['fecha_registro'] = pr['fecha_registro'].isoformat()
     return pre_registros
 
 # ==================== ESTUDIANTES ====================
