@@ -4,24 +4,43 @@
 @media (max-width: 768px) {
   body {
     font-size: 14px;
+    overflow-x: hidden;
+  }
+
+  * {
+    max-width: 100%;
   }
 
   /* Header responsive */
   .header {
     padding: 0.8rem 1rem !important;
+    margin-left: 60px !important;
   }
 
-  .header h1 {
-    font-size: 1.2rem !important;
+  .header-content {
+    padding: 0.75rem 1rem !important;
+    gap: 0.75rem !important;
   }
 
-  .header-user {
-    font-size: 0.85rem !important;
+  .header-title {
+    font-size: 1rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .logout-btn {
-    padding: 0.5rem 1rem !important;
-    font-size: 0.85rem !important;
+  .header-right {
+    gap: 0.75rem !important;
+  }
+
+  .user-info {
+    display: none !important;
+  }
+
+  .btn-logout {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap;
   }
 
   /* Sidebar responsive */
@@ -86,6 +105,10 @@
     padding: 1rem !important;
   }
 
+  .attendance-card {
+    padding: 1.5rem !important;
+  }
+
   .attendance-container h1 {
     font-size: 1.5rem !important;
   }
@@ -94,34 +117,74 @@
     padding: 1rem !important;
   }
 
-  .event-info h2 {
-    font-size: 1.2rem !important;
+  .event-info h1 {
+    font-size: 1.3rem !important;
   }
 
-  .attendance-stats {
-    grid-template-columns: 1fr !important;
-    gap: 0.8rem !important;
+  .event-info h2 {
+    font-size: 1.1rem !important;
+  }
+
+  .input-group {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .input-group input {
+    width: 100% !important;
+  }
+
+  .btn-register {
+    width: 100% !important;
+    padding: 0.875rem !important;
+  }
+
+  .stats-section {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
   }
 
   .stat-card {
     padding: 1rem !important;
   }
 
-  .stat-value {
+  .stat-number {
     font-size: 1.8rem !important;
+  }
+
+  .last-scanned {
+    padding: 1.25rem !important;
+  }
+
+  .attendances-list {
+    max-height: 300px !important;
+  }
+
+  .attendance-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  .attendance-actions {
+    width: 100% !important;
+    justify-content: space-between !important;
   }
 
   .attendances-table-container {
     overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .attendances-table {
     font-size: 0.85rem !important;
+    min-width: 600px !important;
   }
 
   .attendances-table th,
   .attendances-table td {
-    padding: 0.6rem !important;
+    padding: 0.6rem 0.4rem !important;
   }
 
   /* Reports responsive */
@@ -134,43 +197,58 @@
   }
 
   .filters-section {
-    padding: 1rem !important;
+    padding: 1.25rem !important;
   }
 
   .form-row {
-    flex-direction: column !important;
-    gap: 0.8rem !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
   }
 
   .form-row select,
   .form-row input {
     width: 100% !important;
     font-size: 0.9rem !important;
-    padding: 0.8rem !important;
+    padding: 0.75rem !important;
   }
 
   .actions-row {
     flex-direction: column !important;
-    gap: 0.8rem !important;
+    gap: 0.75rem !important;
   }
 
   .actions-row button {
     width: 100% !important;
-    padding: 0.8rem !important;
+    padding: 0.875rem !important;
     font-size: 0.9rem !important;
   }
 
   .event-stats-section {
-    padding: 1rem !important;
+    padding: 1.25rem !important;
   }
 
   .stats-cards {
     grid-template-columns: 1fr !important;
-    gap: 0.8rem !important;
+    gap: 1rem !important;
   }
 
   .stat-card-report {
-    padding: 1rem !important;
+    padding: 1.25rem !important;
+  }
+
+  .results-section {
+    padding: 1.25rem !important;
+    overflow-x: auto !important;
+  }
+
+  table {
+    font-size: 0.85rem !important;
+    min-width: 600px !important;
+  }
+
+  th,
+  td {
+    padding: 0.6rem 0.4rem !important;
   }
 
   /* StudentDashboard responsive */
@@ -178,8 +256,20 @@
     padding: 1rem !important;
   }
 
-  .student-dashboard h1 {
-    font-size: 1.5rem !important;
+  .welcome-section {
+    padding: 1.5rem !important;
+  }
+
+  .welcome-section h1 {
+    font-size: 1.4rem !important;
+  }
+
+  .welcome-section p {
+    font-size: 1rem !important;
+  }
+
+  .events-section h2 {
+    font-size: 1.3rem !important;
   }
 
   .dashboard-stats {
@@ -187,16 +277,49 @@
     gap: 1rem !important;
   }
 
-  .available-events {
-    padding: 1rem !important;
+  .events-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
   }
 
   .event-card-student {
-    padding: 1rem !important;
+    padding: 0 !important;
   }
 
-  .event-card-student h3 {
-    font-size: 1.1rem !important;
+  .event-card-content {
+    padding: 1.25rem !important;
+  }
+
+  .event-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .event-header h3 {
+    font-size: 1.2rem !important;
+  }
+
+  .event-card-image {
+    height: 160px !important;
+  }
+
+  .info-item {
+    gap: 0.5rem !important;
+  }
+
+  .info-item strong {
+    min-width: 90px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .info-item span {
+    font-size: 0.85rem !important;
+  }
+
+  .btn-preregister {
+    padding: 0.875rem 1.25rem !important;
+    font-size: 0.9rem !important;
   }
 
   /* Formularios responsive */
@@ -245,11 +368,82 @@
     font-size: 16px !important; /* Evita zoom en iOS */
   }
 
+  /* Login responsive */
+  .login-container {
+    padding: 1rem !important;
+  }
+
+  .login-card {
+    padding: 2rem 1.5rem !important;
+    max-width: 100% !important;
+  }
+
+  .login-header h1 {
+    font-size: 1.5rem !important;
+  }
+
+  .login-footer {
+    font-size: 0.85rem !important;
+  }
+
+  .login-footer code {
+    font-size: 0.85rem !important;
+    padding: 0.3rem 0.6rem !important;
+  }
+
+  /* Dashboard responsive */
+  .dashboard-container {
+    padding: 1rem !important;
+  }
+
+  .dashboard-container h1 {
+    font-size: 1.6rem !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .stat-card {
+    padding: 1.25rem !important;
+  }
+
+  .stat-value {
+    font-size: 2.5rem !important;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+  }
+
+  .chart-card,
+  .recent-events-card {
+    padding: 1.25rem !important;
+  }
+
+  .event-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .btn-link {
+    width: 100% !important;
+    text-align: center !important;
+  }
+
   /* Modales responsive */
   .modal-content {
     width: 95% !important;
     max-width: 95% !important;
     margin: 1rem !important;
+    padding: 1.25rem !important;
+  }
+
+  .modal-overlay {
+    padding: 0.5rem !important;
   }
 }
 
@@ -261,24 +455,45 @@
 
   .main-content {
     margin-left: 50px !important;
-    padding: 0.8rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .header {
+    margin-left: 50px !important;
+  }
+
+  .header-title {
+    font-size: 0.9rem !important;
   }
 
   h1 {
-    font-size: 1.3rem !important;
+    font-size: 1.25rem !important;
   }
 
   h2 {
-    font-size: 1.1rem !important;
+    font-size: 1.05rem !important;
   }
 
   h3 {
-    font-size: 1rem !important;
+    font-size: 0.95rem !important;
   }
 
   button {
-    font-size: 0.85rem !important;
-    padding: 0.7rem 1rem !important;
+    font-size: 0.8rem !important;
+    padding: 0.65rem 0.9rem !important;
+  }
+
+  .stat-value,
+  .stat-number {
+    font-size: 2rem !important;
+  }
+
+  .event-card-image {
+    height: 140px !important;
+  }
+
+  .stats-section {
+    grid-template-columns: 1fr !important;
   }
 }
 
